@@ -19,45 +19,38 @@ public class Server {
     private Server() {
     }
 
-    private void start(int port) {
-        try {
-            server = new ServerSocket(port);
-            System.out.println("Server started: Host=" + server.getInetAddress().getHostAddress() + " Port=" + server.getLocalPort());
+    private void start(int port) throws IOException {
+        server = new ServerSocket(port);
+        System.out.println("Server started: Host=" + server.getInetAddress().getHostAddress() + " Port=" + server.getLocalPort());
 
-            new Thread(() -> {
-                String inputFromUser = "";
-                Scanner scan = new Scanner(System.in);
-                System.out.println("Type 'exit' to close the server");
+        new Thread(() -> {
+            String inputFromUser = "";
+            Scanner scan = new Scanner(System.in);
+            System.out.println("Type 'exit' to close the server");
 
-                while (!inputFromUser.toLowerCase().equals("exit")) {
-                    inputFromUser = scan.nextLine();
-                }
-
-                System.out.println("Closing server");
-                Server.this.stop();
-            }).start();
-
-            isHandlingRequests = true;
-            int count = 1;
-
-            while (this.isHandlingRequests) {
-                new ClientHandler(server.accept()).start();
-                System.out.println("Handling client " + count);
+            while (!inputFromUser.toLowerCase().equals("exit")) {
+                inputFromUser = scan.nextLine();
             }
 
-        } catch (SocketException e) {
-            System.out.println("Server closed");
-        } catch ( IOException e) {
-            e.printStackTrace();
+            System.out.println("Closing server");
+            try {
+                Server.this.stop();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+        isHandlingRequests = true;
+        int count = 1;
+
+        while (this.isHandlingRequests) {
+            new ClientHandler(server.accept()).start();
+            System.out.println("Handling client " + count);
         }
     }
 
-    private void stop() {
-        try {
-            server.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    private void stop() throws IOException {
+        server.close();
     }
 
     private static class ClientHandler extends Thread {
@@ -145,7 +138,7 @@ public class Server {
                     System.out.println("");
                 }
             } catch (EOFException e) {
-                System.out.println("Client disconnected");
+                System.out.println("End Of File detected");
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
@@ -258,8 +251,8 @@ public class Server {
         private String[] parseCommandFromClient(String commandFromClient) {
             String[] tokenizedCommand = commandFromClient.trim().split("\\s+");
 //            for (String command : tokenizedCommand) {
-//                System.out.println(command);
-//            }
+////                System.out.println(command);
+////            }
             return tokenizedCommand;
         }
 
@@ -285,7 +278,7 @@ public class Server {
         }
     }
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws IOException {
         int inputPort = 5000;
 
         Server server = new Server();
