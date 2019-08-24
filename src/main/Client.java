@@ -13,8 +13,8 @@ public class Client {
     private Socket clientSocket;
     private String MessageToServer;
 
-    private ObjectOutputStream dataFromClientToServer;
-    private ObjectInputStream dataFromServerToClient;
+    private DataOutputStream dataToServerFromClient;
+    private DataInputStream dataFromServerToClient;
 
     // constructor to put ip address and port
     private Client() {
@@ -29,21 +29,43 @@ public class Client {
     }
 
     private void sendMessage(String messageToServer) {
-
+        boolean atEndOfString = false;
         try {
             // create an object output stream from the output stream so we can send an object through it
-            dataFromClientToServer = new ObjectOutputStream(clientSocket.getOutputStream());
-            dataFromClientToServer.writeObject(messageToServer);
-            System.out.println("Sent Message: " + messageToServer);
+            dataToServerFromClient = new DataOutputStream(clientSocket.getOutputStream());
+            dataFromServerToClient = new DataInputStream(clientSocket.getInputStream());
 
-            dataFromServerToClient = new ObjectInputStream(clientSocket.getInputStream());
-            String returnedMessage = (String) dataFromServerToClient.readObject();
+            byte[] stringAsByteArray = messageToServer.getBytes("ISO646-US");
+            byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
+            System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
+            dataToServerFromClient.write(byteArrayWithNull, 0, byteArrayWithNull.length);
+            dataToServerFromClient.flush();
+
+            System.out.println("Sent Message: " + messageToServer+"\0");
+
+            byte[] messageBuffer = new byte[1000];
+            int bytesRead  = 0;
+            boolean nullDetected = false;
+
+            while(!nullDetected){
+                byte messageByte = dataFromServerToClient.readByte();
+
+                if(messageByte != 0) {
+                    messageBuffer[bytesRead] = messageByte;
+                    bytesRead++;
+                } else {
+                    nullDetected = true;
+                    bytesRead = 0;
+                }
+            }
+
+            String returnedMessage = new String(removeNull(messageBuffer));
             System.out.println("Received [" + returnedMessage + "] from server");
 
         } catch (SocketException e) {
             System.out.println("Server socket closed");
             stopConnection();
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -71,6 +93,27 @@ public class Client {
         } finally {
             return;
         }
+    }
+
+    private byte[] removeNull(byte[] array) {
+        int sizeOfArray = 0;
+        byte value = 0;
+
+        for (int i=0; i < array.length; i++){
+            value = array[i];
+            if (value == 0) {
+                sizeOfArray = i;
+                break;
+            }
+        }
+
+        byte[] nullRemovedByteArray = new byte[sizeOfArray];
+
+        for (int j=0; j < sizeOfArray; j++){
+            nullRemovedByteArray[j] = array[j];
+        }
+
+        return  nullRemovedByteArray;
     }
 
     public static void main(String args[])

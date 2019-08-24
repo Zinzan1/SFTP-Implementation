@@ -63,8 +63,8 @@ public class Server {
     private static class ClientHandler extends Thread {
         private Socket clientSocket;
 
-        private ObjectInputStream dataFromClientToServer;
-        private ObjectOutputStream dataToClientFromServer;
+        private DataInputStream dataFromClientToServer;
+        private DataOutputStream dataToClientFromServer;
         private SendMode sendMode = SendMode.A;
 
         private ClientHandler(Socket socket) {
@@ -77,14 +77,27 @@ public class Server {
                 boolean connectionIsOpen = true;
 
                 while (connectionIsOpen) {
-                    dataFromClientToServer = new ObjectInputStream(clientSocket.getInputStream());
+                    // create in/output streams to send byte data to/from client
+                    dataFromClientToServer = new DataInputStream(clientSocket.getInputStream());
+                    dataToClientFromServer = new DataOutputStream(clientSocket.getOutputStream());
 
-                    // read the list of messages from the socket
-                    String messageFromClient = (String) dataFromClientToServer.readObject();
+                    byte[] messageBuffer = new byte[1000];
+                    int bytesRead  = 0;
+                    boolean nullDetected = false;
+
+                    while(!nullDetected){
+                        byte messageByte = dataFromClientToServer.readByte();
+                        if(messageByte != 0) {
+                            messageBuffer[bytesRead] = messageByte;
+                            bytesRead++;
+                        } else {
+                            nullDetected = true;
+                            bytesRead = 0;
+                        }
+                    }
+
+                    String messageFromClient = new String(removeNull(messageBuffer));
                     System.out.println("Received [ " + messageFromClient + " ] from: " + clientSocket);
-
-                    // create an object output stream from the output stream so we can send an object through it
-                    dataToClientFromServer = new ObjectOutputStream(clientSocket.getOutputStream());
 
                     String[] commandAsTokens = parseCommandFromClient(messageFromClient);
                     int numberOfTokens = commandAsTokens.length;
@@ -122,13 +135,18 @@ public class Server {
                             System.out.println(message);
                     }
 
-                    dataToClientFromServer.writeObject("Message received");
+                    String messageToClient = "Message Received" ;
+                    byte[] stringAsByteArray = messageToClient.getBytes("ISO646-US");
+                    byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
+                    System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
+                    dataToClientFromServer.write(byteArrayWithNull, 0, byteArrayWithNull.length);
+                    dataToClientFromServer.flush();
                     System.out.println("Sent return message to client: " + clientSocket);
                     System.out.println("");
                 }
             } catch (EOFException e) {
                 System.out.println("Client disconnected");
-            } catch (IOException | ClassNotFoundException e) {
+            } catch (IOException e) {
                 e.printStackTrace();
             } finally {
                 return;
@@ -137,100 +155,100 @@ public class Server {
 
         private void userCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void acctCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void passCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void typeCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void listCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void cdirCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void killCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void nameCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void doneCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void retrCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
         private void storCommand(String[] args) throws IOException {
             if (args.length == 2) {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
             else {
-                dataToClientFromServer.writeObject("Message received");
+                dataToClientFromServer.writeUTF("Message received");
             }
         }
 
@@ -239,12 +257,32 @@ public class Server {
 
         private String[] parseCommandFromClient(String commandFromClient) {
             String[] tokenizedCommand = commandFromClient.trim().split("\\s+");
-            for (String command : tokenizedCommand) {
-                System.out.println(command);
-            }
+//            for (String command : tokenizedCommand) {
+//                System.out.println(command);
+//            }
             return tokenizedCommand;
         }
 
+        private byte[] removeNull(byte[] array) {
+            int sizeOfArray = 0;
+            byte value = 0;
+
+            for (int i=0; i < array.length; i++){
+                value = array[i];
+                if (value == 0) {
+                    sizeOfArray = i;
+                    break;
+                }
+            }
+
+            byte[] nullRemovedByteArray = new byte[sizeOfArray];
+
+            for (int j=0; j < sizeOfArray; j++){
+                nullRemovedByteArray[j] = array[j];
+            }
+
+            return  nullRemovedByteArray;
+        }
     }
 
     public static void main(String args[]) {
