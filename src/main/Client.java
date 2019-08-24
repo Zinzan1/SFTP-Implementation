@@ -16,9 +16,6 @@ public class Client {
     private ObjectOutputStream dataFromClientToServer;
     private ObjectInputStream dataFromServerToClient;
 
-    private ObjectOutputStream asciiFromClientToServer;
-    private ObjectInputStream asciiFromServerToClient;
-
     // constructor to put ip address and port
     private Client() {
     }
@@ -35,12 +32,12 @@ public class Client {
 
         try {
             // create an object output stream from the output stream so we can send an object through it
-            asciiFromClientToServer = new ObjectOutputStream(clientSocket.getOutputStream());
-            asciiFromClientToServer.writeObject(messageToServer);
+            dataFromClientToServer = new ObjectOutputStream(clientSocket.getOutputStream());
+            dataFromClientToServer.writeObject(messageToServer);
             System.out.println("Sent Message: " + messageToServer);
 
-            asciiFromServerToClient = new ObjectInputStream(clientSocket.getInputStream());
-            String returnedMessage = (String) asciiFromServerToClient.readObject();
+            dataFromServerToClient = new ObjectInputStream(clientSocket.getInputStream());
+            String returnedMessage = (String) dataFromServerToClient.readObject();
             System.out.println("Received [" + returnedMessage + "] from server");
 
         } catch (SocketException e) {

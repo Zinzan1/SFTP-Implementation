@@ -62,8 +62,7 @@ public class Server {
 
     private static class ClientHandler extends Thread {
         private Socket clientSocket;
-        private ObjectInputStream ASCIIFromClientToServer;
-        private ObjectOutputStream ASCIIToClientFromServer;
+
         private ObjectInputStream dataFromClientToServer;
         private ObjectOutputStream dataToClientFromServer;
         private SendMode sendMode = SendMode.A;
