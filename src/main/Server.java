@@ -9,10 +9,17 @@ import java.util.HashMap;
 import java.util.Scanner;
 
 public class Server {
-    //initialize socket and input stream
     private ServerSocket server;
     private boolean isHandlingRequests;
     private ArrayList<Authentication> ListOfAuthenticatedUsers;
+    private final static String POS_GREETING = "+UOA-XX SFTP Service";
+    private final static String NEG_GREETING = "-UOA-XX Out to Lunch";
+
+    private String username = "superuser";
+    private String password = "CompSys725";
+    private long userID = 1;
+
+    private Authentication auth = new Authentication(username, password, userID);
 
 
     // constructor with port
@@ -60,6 +67,11 @@ public class Server {
         private DataOutputStream dataToClientFromServer;
         private SendMode sendMode = SendMode.A;
 
+        private String user;
+        private String pass;
+        private long id;
+        private boolean isAuthenticated = false;
+
         private ClientHandler(Socket socket) {
             this.clientSocket = socket;
         }
@@ -68,12 +80,12 @@ public class Server {
         public void run() {
             try {
                 boolean connectionIsOpen = true;
+                // create in/output streams to send byte data to/from client
+                dataFromClientToServer = new DataInputStream(clientSocket.getInputStream());
+                dataToClientFromServer = new DataOutputStream(clientSocket.getOutputStream());
+                sendTextToClient(Server.POS_GREETING);
 
                 while (connectionIsOpen) {
-                    // create in/output streams to send byte data to/from client
-                    dataFromClientToServer = new DataInputStream(clientSocket.getInputStream());
-                    dataToClientFromServer = new DataOutputStream(clientSocket.getOutputStream());
-
                     byte[] messageBuffer = new byte[1000];
                     int bytesRead  = 0;
                     boolean nullDetected = false;
@@ -93,7 +105,6 @@ public class Server {
                     System.out.println("Received [ " + messageFromClient + " ] from: " + clientSocket);
 
                     String[] commandAsTokens = parseCommandFromClient(messageFromClient);
-                    int numberOfTokens = commandAsTokens.length;
                     String upperCommandFromClient = commandAsTokens[0].toUpperCase();
 
                     switch (upperCommandFromClient) {
@@ -123,17 +134,21 @@ public class Server {
                             ;
                         case "STOR":
                             ;
+                        case "TOBE":
+                            ;
+                        case "SEND":
+                            ;
+                        case "STOP":
+                            ;
+                        case "SIZE":
+                            ;
                         default:
                             String message = "Command not recognised, please try again.";
                             System.out.println(message);
                     }
 
                     String messageToClient = "Message Received" ;
-                    byte[] stringAsByteArray = messageToClient.getBytes("ISO646-US");
-                    byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
-                    System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
-                    dataToClientFromServer.write(byteArrayWithNull, 0, byteArrayWithNull.length);
-                    dataToClientFromServer.flush();
+                    sendTextToClient(messageToClient);
                     System.out.println("Sent return message to client: " + clientSocket);
                     System.out.println("");
                 }
@@ -141,107 +156,134 @@ public class Server {
                 System.out.println("End Of File detected");
             } catch (IOException e) {
                 e.printStackTrace();
-            } finally {
-                return;
             }
         }
 
         private void userCommand(String[] args) throws IOException {
+            String loggedIn = "!" + args[1] + " logged in";
+            String success = "+User-id valid, send account and password";
+            String error = "-Invalid user-id, try again";
+
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void acctCommand(String[] args) throws IOException {
+            String loggedIn = "! Account valid, logged-in";
+            String success = "+Account valid, send password";
+            String error = "-Invalid account, try again";
+
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void passCommand(String[] args) throws IOException {
+            String loggedIn = "! Logged in";
+            String success = "+Send account";
+            String error = "-Wrong password, try again";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void typeCommand(String[] args) throws IOException {
+            String successA = "+Using Ascii mode";
+            String successB = "+Using Binary mode";
+            String successC = "+Using Continuous mode";
+            String error = "-Type not valid";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void listCommand(String[] args) throws IOException {
+            String success = "+";
+            String error = "-";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void cdirCommand(String[] args) throws IOException {
+            String success = "+";
+            String error = "-";
+            String loggedIn = "!";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void killCommand(String[] args) throws IOException {
+            String success = "+";
+            String error = "-";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void nameCommand(String[] args) throws IOException {
+            String success = "+";
+            String error = "-";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void doneCommand(String[] args) throws IOException {
+            String success = "+Your account has been charged";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void retrCommand(String[] args) throws IOException {
+            String success = "+";
+            String error = "-";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
         private void storCommand(String[] args) throws IOException {
+            String success = "+";
+            String error = "-";
             if (args.length == 2) {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
             else {
-                dataToClientFromServer.writeUTF("Message received");
+                sendTextToClient(Server.POS_GREETING);
             }
         }
 
@@ -267,20 +309,24 @@ public class Server {
                     break;
                 }
             }
-
             byte[] nullRemovedByteArray = new byte[sizeOfArray];
-
             for (int j=0; j < sizeOfArray; j++){
                 nullRemovedByteArray[j] = array[j];
             }
-
             return  nullRemovedByteArray;
+        }
+
+        private void sendTextToClient(String string) throws IOException {
+            byte[] stringAsByteArray = string.getBytes("ISO646-US");
+            byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
+            System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
+            dataToClientFromServer.write(byteArrayWithNull, 0, byteArrayWithNull.length);
+            dataToClientFromServer.flush();
         }
     }
 
     public static void main(String args[]) throws IOException {
         int inputPort = 5000;
-
         Server server = new Server();
         server.start(5000 + inputPort - inputPort);
     }

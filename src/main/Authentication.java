@@ -5,7 +5,7 @@ public class Authentication {
     private final String Password;
     private final String Account;
 
-    public Authentication(long id, String pw, String acc) {
+    public Authentication(String acc, String pw, long id) {
         UserID = id;
         Password = pw;
         Account = acc;

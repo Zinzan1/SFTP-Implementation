@@ -26,15 +26,44 @@ public class Client {
 
     private void sendMessage(String messageToServer) throws IOException {
         boolean atEndOfString = false;
-        // create an object output stream from the output stream so we can send an object through it
-        dataToServerFromClient = new DataOutputStream(clientSocket.getOutputStream());
-        dataFromServerToClient = new DataInputStream(clientSocket.getInputStream());
 
         byte[] stringAsByteArray = messageToServer.getBytes("ISO646-US");
         byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
         System.arraycopy(stringAsByteArray, 0, byteArrayWithNull, 0, stringAsByteArray.length);
         dataToServerFromClient.write(byteArrayWithNull, 0, byteArrayWithNull.length);
         dataToServerFromClient.flush();
+        String upperCommandFromClient = "";
+
+        switch (upperCommandFromClient) {
+            case "USER":
+                ;
+            case "ACCT":
+                ;
+            case "PASS":
+                ;
+            case "TYPE":
+                ;
+            case "LIST":
+                ;
+            case "CDIR":
+                ;
+            case "KILL":
+                ;
+            case "NAME":
+                ;
+            case "DONE":
+                // close connection
+                System.out.println("Closing connection");
+                clientSocket.close();
+                break;
+            case "RETR":
+                ;
+            case "STOR":
+                ;
+            default:
+                String message = "Command not recognised, please try again.";
+                System.out.println(message);
+        }
 
         System.out.println("Sent Message: " + messageToServer + "\0");
 
@@ -57,12 +86,34 @@ public class Client {
         String returnedMessage = new String(removeNull(messageBuffer));
         System.out.println("Received [" + returnedMessage + "] from server");
 
-        stopConnection();
+        //stopConnection();
     }
 
     private void startConnection(String address, int port) throws IOException {
         // establish a connection
         clientSocket = new Socket(address, port);
+        dataToServerFromClient = new DataOutputStream(clientSocket.getOutputStream());
+        dataFromServerToClient = new DataInputStream(clientSocket.getInputStream());
+
+        byte[] messageBuffer = new byte[1000];
+        int bytesRead = 0;
+        boolean nullDetected = false;
+
+        while (!nullDetected) {
+            byte messageByte = dataFromServerToClient.readByte();
+
+            if (messageByte != 0) {
+                messageBuffer[bytesRead] = messageByte;
+                bytesRead++;
+            } else {
+                nullDetected = true;
+                bytesRead = 0;
+            }
+        }
+
+        String returnedMessage = new String(removeNull(messageBuffer));
+        System.out.println("Received [" + returnedMessage + "] from server");
+
         System.out.println("Connected");
 
         String inputFromUser = "";
