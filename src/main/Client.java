@@ -26,45 +26,23 @@ public class Client {
 
     private void sendMessage(String messageToServer) throws IOException {
         boolean atEndOfString = false;
+        String[] commandAsTokens = parseCommandFromClient(messageToServer);
+        String upperCommand = commandAsTokens[0];
 
-        byte[] stringAsByteArray = messageToServer.getBytes("ISO646-US");
-        byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
-        System.arraycopy(stringAsByteArray, 0, byteArrayWithNull, 0, stringAsByteArray.length);
-        dataToServerFromClient.write(byteArrayWithNull, 0, byteArrayWithNull.length);
-        dataToServerFromClient.flush();
-        String upperCommandFromClient = "";
-
-        switch (upperCommandFromClient) {
-            case "USER":
-                ;
-            case "ACCT":
-                ;
-            case "PASS":
-                ;
-            case "TYPE":
-                ;
-            case "LIST":
-                ;
-            case "CDIR":
-                ;
-            case "KILL":
-                ;
-            case "NAME":
-                ;
+        switch (upperCommand) {
             case "DONE":
                 // close connection
                 System.out.println("Closing connection");
-                clientSocket.close();
+                stopConnection();
                 break;
             case "RETR":
                 ;
             case "STOR":
                 ;
             default:
-                String message = "Command not recognised, please try again.";
-                System.out.println(message);
         }
 
+        sendTextToServer(messageToServer);
         System.out.println("Sent Message: " + messageToServer + "\0");
 
         byte[] messageBuffer = new byte[1000];
@@ -84,9 +62,7 @@ public class Client {
         }
 
         String returnedMessage = new String(removeNull(messageBuffer));
-        System.out.println("Received [" + returnedMessage + "] from server");
-
-        //stopConnection();
+        System.out.println(returnedMessage);
     }
 
     private void startConnection(String address, int port) throws IOException {
@@ -146,6 +122,22 @@ public class Client {
         }
 
         return  nullRemovedByteArray;
+    }
+
+    private String[] parseCommandFromClient(String commandFromClient) {
+        String[] tokenizedCommand = commandFromClient.trim().split("\\s+");
+//            for (String command : tokenizedCommand) {
+////                System.out.println(command);
+////            }
+        return tokenizedCommand;
+    }
+
+    private void sendTextToServer(String string) throws IOException {
+        byte[] stringAsByteArray = string.getBytes("ISO646-US");
+        byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
+        System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
+        dataToServerFromClient.write(byteArrayWithNull, 0, byteArrayWithNull.length);
+        dataToServerFromClient.flush();
     }
 
     public static void main(String args[]) throws IOException {

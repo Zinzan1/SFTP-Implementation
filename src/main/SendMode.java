@@ -1,7 +1,7 @@
 package main;
 
 public enum SendMode {
-    A,
-    B,
-    C;
+    ASCII,
+    BINARY,
+    CONTINUOUS;
 }

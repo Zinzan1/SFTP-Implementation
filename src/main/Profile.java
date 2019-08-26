@@ -1,17 +1,17 @@
 package main;
 
-public class Authentication {
-    private final long UserID;
+public class Profile {
+    private final String UserID;
     private final String Password;
     private final String Account;
 
-    public Authentication(String acc, String pw, long id) {
+    public Profile(String acc, String pw, String id) {
         UserID = id;
         Password = pw;
         Account = acc;
     }
 
-    public long getUserID() {
+    public String getUserID() {
         return UserID;
     }
 
