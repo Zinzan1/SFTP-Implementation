@@ -127,14 +127,6 @@ public class Server {
                         case "STOR":
                             storCommand(commandAsTokens);
                             break;
-//                        case "TOBE":
-//                            ;
-//                        case "SEND":
-//                            ;
-//                        case "STOP":
-//                            ;
-//                        case "SIZE":
-//                            ;
                         default:
                             String message = "-Command not recognised, please try again.";
                             sendTextToClient(message);
@@ -323,6 +315,7 @@ public class Server {
             File curDir = new File(currentWorkingDirectory);
 
             //TODO Not currently working when switching drive letters in windows.
+            // Refactor using cd command from linux.
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1];
@@ -492,8 +485,6 @@ public class Server {
 
         private void retrCommand(String[] args) throws IOException {
             String fileNotExist = "-File doesn't exist";
-            String notAtDir = "-Can't connect to directory because: file is not a directory";
-            String sameDirectory = "-Can't connect to directory because: same as current working directory";
             File curDir = new File(currentWorkingDirectory);
 
             if (isFullyAuthenticated()) {
@@ -504,7 +495,37 @@ public class Server {
                     if (fileToBeSent.exists()) {
                         if (!fileToBeSent.isDirectory()) {
                             sendTextToClient(" " + fileToBeSent.length());
-                            //TODO send file code
+
+                            String succReturn;
+                            String[] succArgs;
+                            boolean validCommand = false;
+                            String badCommand = " " + fileToBeSent.length() + " file exists, please send either a 'SEND' or 'STOP' command ";
+
+                            while (!validCommand) {
+                                succReturn = receiveTextFromClient();
+                                succArgs = parseCommandFromClient(succReturn);
+
+                                if (succArgs.length == 1) {
+                                    String succCommand = succArgs[0].toUpperCase();
+                                    switch (succCommand) {
+                                        case "SEND":
+                                            validCommand = true;
+                                            sendTextToClient("*Sending Now");
+                                            //TODO send file code
+                                            break;
+                                        case "STOP":
+                                            validCommand = true;
+                                            String abortSuccess = "+ok, RETR aborted";
+                                            sendTextToClient(abortSuccess);
+                                            break;
+                                        default:
+                                            sendTextToClient(badCommand);
+                                            break;
+                                    }
+                                } else {
+                                    sendTextToClient(badCommand);
+                                }
+                            }
                         } else {
                             sendTextToClient(fileNotExist);
                         }
@@ -517,29 +538,208 @@ public class Server {
             } else {
                 sendTextToClient(notLoggedIn);
             }
+            System.out.println("end RETR");
         }
 
         private void storCommand(String[] args) throws IOException {
-            String notEnoughArgs = "-Not enough arguments";
-
-            File curDir = new File(currentWorkingDirectory);
-            String[] filesInThisDir = curDir.list();
+            String notEnoughArgs = "-STOR takes 3 arguments";
 
             if (isFullyAuthenticated()) {
                 if (args.length == 3) {
                     String arg = args[1].toUpperCase();
+                    String nameOfFiletoSave = currentWorkingDirectory + File.separator + args[2];
+                    boolean fileExists = new File(nameOfFiletoSave).exists();
+                    boolean supportsGenerations = false;
+                    String succStorReturn;
+                    String succStorArgs[];
+
                     switch(arg) {
                         case "NEW":
-                            System.out.println("Client arg was NEW");
-                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            if(fileExists) {
+                                if (supportsGenerations) {
+                                    sendTextToClient("+File exists, will create new generation of file");
+                                    succStorReturn = receiveTextFromClient();
+                                    succStorArgs = parseCommandFromClient(succStorReturn);
+                                    if (succStorArgs.length == 2) {
+                                        String sizeArg = succStorArgs[0].toUpperCase();
+                                        long numberOfBytes;
+                                        try {
+                                            numberOfBytes = Long.parseLong(succStorArgs[1]);
+                                        } catch (NumberFormatException e) {
+                                            sendTextToClient("-please enter a valid number of bytes");
+                                            break;
+                                        }
+                                        switch (sizeArg) {
+                                            case "SIZE":
+                                                if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
+                                                    sendTextToClient("+ok, waiting for file");
+                                                    //TODO: Add receive functionality
+                                                } else {
+                                                    sendTextToClient("-Not enough room, don't send it");
+                                                }
+                                                break;
+                                            default:
+                                                sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                                break;
+                                        }
+                                    } else {
+                                        sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                    }
+                                } else {
+                                    sendTextToClient("-File exists, but system doesn't support generations");
+                                }
+                            } else {
+                                sendTextToClient("+File does not exist, will create new file");
+                                succStorReturn = receiveTextFromClient();
+                                succStorArgs = parseCommandFromClient(succStorReturn);
+                                if (succStorArgs.length == 2) {
+                                    String sizeArg = succStorArgs[0].toUpperCase();
+                                    long numberOfBytes;
+                                    try {
+                                        numberOfBytes = Long.parseLong(succStorArgs[1]);
+                                    } catch (NumberFormatException e) {
+                                        sendTextToClient("-please enter a valid number of bytes");
+                                        break;
+                                    }
+                                    switch (sizeArg) {
+                                        case "SIZE":
+                                            if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
+                                                sendTextToClient("+ok, waiting for file");
+                                                //TODO: Add receive functionality
+                                            } else {
+                                                sendTextToClient("-Not enough room, don't send it");
+                                            }
+                                            break;
+                                        default:
+                                            sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                            break;
+                                    }
+                                } else {
+                                    sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                }
+                            }
                             break;
                         case "OLD":
-                            System.out.println("Client arg was OLD");
-                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            if(fileExists) {
+                                sendTextToClient("+Will write over old file");
+                                succStorReturn = receiveTextFromClient();
+                                succStorArgs = parseCommandFromClient(succStorReturn);
+                                if (succStorArgs.length == 2) {
+                                    String sizeArg = succStorArgs[0].toUpperCase();
+                                    long numberOfBytes;
+                                    try {
+                                        numberOfBytes = Long.parseLong(succStorArgs[1]);
+                                    } catch (NumberFormatException e) {
+                                        sendTextToClient("-please enter a valid number of bytes");
+                                        break;
+                                    }
+                                    switch (sizeArg) {
+                                        case "SIZE":
+                                            if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
+                                                sendTextToClient("+ok, waiting for file");
+                                                //TODO: Add receive functionality
+                                            } else {
+                                                sendTextToClient("-Not enough room, don't send it");
+                                            }
+                                            break;
+                                        default:
+                                            sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                            break;
+                                    }
+                                } else {
+                                    sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                }
+                            } else {
+                                sendTextToClient("+Will create new file");
+                                succStorReturn = receiveTextFromClient();
+                                succStorArgs = parseCommandFromClient(succStorReturn);
+                                if (succStorArgs.length == 2) {
+                                    String sizeArg = succStorArgs[0].toUpperCase();
+                                    long numberOfBytes;
+                                    try {
+                                        numberOfBytes = Long.parseLong(succStorArgs[1]);
+                                    } catch (NumberFormatException e) {
+                                        sendTextToClient("-please enter a valid number of bytes");
+                                        break;
+                                    }
+                                    switch (sizeArg) {
+                                        case "SIZE":
+                                            if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
+                                                sendTextToClient("+ok, waiting for file");
+                                                //TODO: Add receive functionality
+                                            } else {
+                                                sendTextToClient("-Not enough room, don't send it");
+                                            }
+                                            break;
+                                        default:
+                                            sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                            break;
+                                    }
+                                } else {
+                                    sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                }
+                            }
                             break;
                         case "APP":
-                            System.out.println("Client arg was APP");
-                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            if(fileExists) {
+                                sendTextToClient("+Will append to file");
+                                succStorReturn = receiveTextFromClient();
+                                succStorArgs = parseCommandFromClient(succStorReturn);
+                                if (succStorArgs.length == 2) {
+                                    String sizeArg = succStorArgs[0].toUpperCase();
+                                    long numberOfBytes;
+                                    try {
+                                        numberOfBytes = Long.parseLong(succStorArgs[1]);
+                                    } catch (NumberFormatException e) {
+                                        sendTextToClient("-please enter a valid number of bytes");
+                                        break;
+                                    }
+                                    switch (sizeArg) {
+                                        case "SIZE":
+                                            if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
+                                                sendTextToClient("+ok, waiting for file");
+                                                //TODO: Add receive functionality
+                                            } else {
+                                                sendTextToClient("-Not enough room, don't send it");
+                                            }
+                                            break;
+                                        default:
+                                            sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                            break;
+                                    }
+                                } else {
+                                    sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                }
+                            } else {
+                                sendTextToClient("+Will create file");
+                                succStorReturn = receiveTextFromClient();
+                                succStorArgs = parseCommandFromClient(succStorReturn);
+                                if (succStorArgs.length == 2) {
+                                    String sizeArg = succStorArgs[0].toUpperCase();
+                                    long numberOfBytes;
+                                    try {
+                                        numberOfBytes = Long.parseLong(succStorArgs[1]);
+                                    } catch (NumberFormatException e) {
+                                        sendTextToClient("-please enter a valid number of bytes");
+                                        break;
+                                    }
+                                    switch (sizeArg) {
+                                        case "SIZE":
+                                            if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
+                                                sendTextToClient("+ok, waiting for file");
+                                                //TODO: Add receive functionality
+                                            } else {
+                                                sendTextToClient("-Not enough room, don't send it");
+                                            }
+                                            break;
+                                        default:
+                                            sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                            break;
+                                    }
+                                } else {
+                                    sendTextToClient("-please enter a SEND command followed by the size of the file after a STOR command");
+                                }
+                            }
                             break;
                         default:
                             String invalidArgument = "-Invalid argument, please send NEW, OLD or APP as the second argument";
@@ -553,7 +753,6 @@ public class Server {
                 sendTextToClient(notLoggedIn);
             }
         }
-
 
 
         /****************************************   Helper Functions   ************************************************/

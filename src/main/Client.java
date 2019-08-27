@@ -32,14 +32,14 @@ public class Client {
         switch (upperCommand) {
             case "CDIR":
                 sendTextToServer(messageToServer);
-                String cdirReturnedMessage = receiveTextFromServer();
+                String cdirReturnedMessage = receiveTextFromServer(true);
 
                 if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("+")) {
                     String inputForCDIR;
                     while (!String.valueOf(cdirReturnedMessage.charAt(0)).equals("!") || !String.valueOf(cdirReturnedMessage.charAt(0)).equals("-")) {
                         inputForCDIR= scan.nextLine();
                         sendTextToServer(inputForCDIR);
-                        cdirReturnedMessage = receiveTextFromServer();
+                        cdirReturnedMessage = receiveTextFromServer(true);
                     }
                 } else if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("-")) {
                     System.out.println("done CDIR -");
@@ -56,12 +56,12 @@ public class Client {
                 break;
             case "NAME":
                 sendTextToServer(messageToServer);
-                String nameReturnedMessage = receiveTextFromServer();
+                String nameReturnedMessage = receiveTextFromServer(true);
 
                 if (String.valueOf(nameReturnedMessage.charAt(0)).equals("+")) {
                     String inputForTOBE = scan.nextLine();
                     sendTextToServer(inputForTOBE);
-                    receiveTextFromServer();
+                    receiveTextFromServer(true);
 
                 } else if (String.valueOf(nameReturnedMessage.charAt(0)).equals("-")) {
 
@@ -70,12 +70,65 @@ public class Client {
                 }
                 break;
             case "RETR":
+                sendTextToServer(messageToServer);
+                String retrReturnedMessage = receiveTextFromServer(true);
+
+                if (String.valueOf(retrReturnedMessage.charAt(0)).equals(" ")) {
+                    String inputForCDIR;
+                    while (String.valueOf(retrReturnedMessage.charAt(0)).equals(" ")) {
+                        inputForCDIR= scan.nextLine();
+                        sendTextToServer(inputForCDIR);
+                        retrReturnedMessage = receiveTextFromServer(false);
+
+                        if (!String.valueOf(retrReturnedMessage.charAt(0)).equals("*")) {
+                            System.out.println(retrReturnedMessage);
+                        } else {
+                            //TODO receive bytes
+                            break;
+                        }
+                    }
+                } else if (String.valueOf(retrReturnedMessage.charAt(0)).equals("-")) {
+                    System.out.println("done RETR -"); //debugging purposes
+                } else {
+                    System.out.println("-An unexpected error has occurred");
+                }
                 break;
             case "STOR":
+                // Send STOR command
+                sendTextToServer(messageToServer);
+
+                // Response from server
+                String storReturnedMessage = receiveTextFromServer(true);
+
+                // If response code is success
+                if (String.valueOf(storReturnedMessage.charAt(0)).equals("+")) {
+                    String inputForCDIR  = scan.nextLine();
+                    sendTextToServer(inputForCDIR);
+                    storReturnedMessage = receiveTextFromServer(true);
+
+                    // Server response for SIZE command
+                    if (String.valueOf(storReturnedMessage.charAt(0)).equals("+")) {
+                    // TODO: send bytes to server
+                    //  Receive last server response
+                        //+Saved <file-spec>
+                        //-Couldn't save because (reason)
+                    } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
+
+                    } else {
+                    }
+
+                // If response code is a failure
+                } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
+                    System.out.println("done STOR -"); //debugging purposes
+
+                // Safety else statement (shouldn't be executed)
+                } else {
+                    System.out.println("-An unexpected error has occurred");
+                }
                 break;
             default:
                 sendTextToServer(messageToServer);
-                String returnedMessage = receiveTextFromServer();
+                String returnedMessage = receiveTextFromServer(true);
                 break;
         }
     }
@@ -86,7 +139,7 @@ public class Client {
         dataToServerFromClient = new DataOutputStream(clientSocket.getOutputStream());
         dataFromServerToClient = new DataInputStream(clientSocket.getInputStream());
 
-        String returnedMessage = receiveTextFromServer();
+        String returnedMessage = receiveTextFromServer(true);
         System.out.println("Received [" + returnedMessage + "] from server");
 
         System.out.println("Connected");
@@ -96,7 +149,7 @@ public class Client {
         System.out.println("All text input will be echoed to the server. Type 'exit' to quit");
 
         while (!inputFromUser.toLowerCase().equals("done")) {
-            System.out.print("Please enter a command: ");
+            System.out.print("[Command Finished] Please enter a command: ");
             inputFromUser = scan.nextLine();
             this.sendMessage(inputFromUser);
         }
@@ -140,7 +193,7 @@ public class Client {
         System.out.println("Sent Message: " + string + "\0");
     }
 
-    private String receiveTextFromServer() throws IOException {
+    private String receiveTextFromServer(boolean printOutput) throws IOException {
         byte[] messageBuffer = new byte[1000];
         int bytesRead = 0;
         boolean nullDetected = false;
@@ -158,7 +211,9 @@ public class Client {
         }
 
         String returnedMessage = new String(removeNull(messageBuffer));
-        System.out.println("Received message: " + returnedMessage + " from server");
+        if (printOutput) {
+            System.out.println("Received message: " + returnedMessage + " from server");
+        }
         return returnedMessage;
     }
 
