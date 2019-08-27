@@ -56,6 +56,7 @@ public class Server {
     /**************************************   Code that handles clients   *********************************************/
     private static class ClientHandler extends Thread {
         private Socket clientSocket;
+        boolean connectionIsOpen = true;
 
         private DataInputStream dataFromClientToServer;
         private DataOutputStream dataToClientFromServer;
@@ -78,7 +79,6 @@ public class Server {
         @Override
         public void run() {
             try {
-                boolean connectionIsOpen = true;
                 // create in/output streams to send byte data to/from client
                 dataFromClientToServer = new DataInputStream(clientSocket.getInputStream());
                 dataToClientFromServer = new DataOutputStream(clientSocket.getOutputStream());
@@ -161,6 +161,8 @@ public class Server {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
+            System.out.println("Thread Dead");
         }
 
         private void userCommand(String[] args) throws IOException {
@@ -407,12 +409,15 @@ public class Server {
 
         private void doneCommand(String[] args) throws IOException {
             String success = "+Your account has been invoiced";
+            String tooManyArgs = "-Done requires no arguments";
             if (isFullyAuthenticated()) {
-                if (args.length == 2) {
-                    sendTextToClient(Server.POS_GREETING);
+                if (args.length == 1) {
+                    sendTextToClient(success);
+                    clientSocket.close();
+                    connectionIsOpen = false;
                 }
                 else {
-                    sendTextToClient(Server.POS_GREETING);
+                    sendTextToClient(tooManyArgs);
                 }
             } else {
                 sendTextToClient(notLoggedIn);
