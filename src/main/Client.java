@@ -11,7 +11,7 @@ public class Client {
 
     // initialize socket and input output streams
     private Socket clientSocket;
-    private String MessageToServer;
+    private Scanner scan;
 
     private DataOutputStream dataToServerFromClient;
     private DataInputStream dataFromServerToClient;
@@ -27,42 +27,57 @@ public class Client {
     private void sendMessage(String messageToServer) throws IOException {
         boolean atEndOfString = false;
         String[] commandAsTokens = parseCommandFromClient(messageToServer);
-        String upperCommand = commandAsTokens[0];
+        String upperCommand = commandAsTokens[0].toUpperCase();
 
         switch (upperCommand) {
+            case "CDIR":
+                sendTextToServer(messageToServer);
+                String cdirReturnedMessage = receiveTextFromServer();
+
+                if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("+")) {
+                    String inputForCDIR;
+                    while (!String.valueOf(cdirReturnedMessage.charAt(0)).equals("!") || !String.valueOf(cdirReturnedMessage.charAt(0)).equals("-")) {
+                        inputForCDIR= scan.nextLine();
+                        sendTextToServer(inputForCDIR);
+                        cdirReturnedMessage = receiveTextFromServer();
+                    }
+                } else if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("-")) {
+                    System.out.println("done CDIR -");
+                } else if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("!")) {
+                    System.out.println("done CDIR !");
+                } else {
+                    System.out.println("-An unexpected error has occurred");
+                }
+                break;
             case "DONE":
                 // close connection
                 System.out.println("Closing connection");
                 stopConnection();
                 break;
+            case "NAME":
+                sendTextToServer(messageToServer);
+                String nameReturnedMessage = receiveTextFromServer();
+
+                if (String.valueOf(nameReturnedMessage.charAt(0)).equals("+")) {
+                    String inputForTOBE = scan.nextLine();
+                    sendTextToServer(inputForTOBE);
+                    receiveTextFromServer();
+
+                } else if (String.valueOf(nameReturnedMessage.charAt(0)).equals("-")) {
+
+                } else {
+                    System.out.println("-An unexpected error has occurred");
+                }
+                break;
             case "RETR":
-                ;
+                break;
             case "STOR":
-                ;
+                break;
             default:
+                sendTextToServer(messageToServer);
+                String returnedMessage = receiveTextFromServer();
+                break;
         }
-
-        sendTextToServer(messageToServer);
-        System.out.println("Sent Message: " + messageToServer + "\0");
-
-        byte[] messageBuffer = new byte[1000];
-        int bytesRead = 0;
-        boolean nullDetected = false;
-
-        while (!nullDetected) {
-            byte messageByte = dataFromServerToClient.readByte();
-
-            if (messageByte != 0) {
-                messageBuffer[bytesRead] = messageByte;
-                bytesRead++;
-            } else {
-                nullDetected = true;
-                bytesRead = 0;
-            }
-        }
-
-        String returnedMessage = new String(removeNull(messageBuffer));
-        System.out.println(returnedMessage);
     }
 
     private void startConnection(String address, int port) throws IOException {
@@ -71,29 +86,13 @@ public class Client {
         dataToServerFromClient = new DataOutputStream(clientSocket.getOutputStream());
         dataFromServerToClient = new DataInputStream(clientSocket.getInputStream());
 
-        byte[] messageBuffer = new byte[1000];
-        int bytesRead = 0;
-        boolean nullDetected = false;
-
-        while (!nullDetected) {
-            byte messageByte = dataFromServerToClient.readByte();
-
-            if (messageByte != 0) {
-                messageBuffer[bytesRead] = messageByte;
-                bytesRead++;
-            } else {
-                nullDetected = true;
-                bytesRead = 0;
-            }
-        }
-
-        String returnedMessage = new String(removeNull(messageBuffer));
+        String returnedMessage = receiveTextFromServer();
         System.out.println("Received [" + returnedMessage + "] from server");
 
         System.out.println("Connected");
 
         String inputFromUser = "";
-        Scanner scan = new Scanner(System.in);
+        scan = new Scanner(System.in);
         System.out.println("All text input will be echoed to the server. Type 'exit' to quit");
 
         while (!inputFromUser.toLowerCase().equals("done")) {
@@ -138,6 +137,29 @@ public class Client {
         System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
         dataToServerFromClient.write(byteArrayWithNull, 0, byteArrayWithNull.length);
         dataToServerFromClient.flush();
+        System.out.println("Sent Message: " + string + "\0");
+    }
+
+    private String receiveTextFromServer() throws IOException {
+        byte[] messageBuffer = new byte[1000];
+        int bytesRead = 0;
+        boolean nullDetected = false;
+
+        while (!nullDetected) {
+            byte messageByte = dataFromServerToClient.readByte();
+
+            if (messageByte != 0) {
+                messageBuffer[bytesRead] = messageByte;
+                bytesRead++;
+            } else {
+                nullDetected = true;
+                bytesRead = 0;
+            }
+        }
+
+        String returnedMessage = new String(removeNull(messageBuffer));
+        System.out.println("Received message: " + returnedMessage + " from server");
+        return returnedMessage;
     }
 
     public static void main(String args[]) throws IOException {

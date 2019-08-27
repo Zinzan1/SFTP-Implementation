@@ -3,6 +3,7 @@ package main;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
 import java.util.Scanner;
 
 /***********************************************   Server Code   ******************************************************/
@@ -86,22 +87,7 @@ public class Server {
                 System.out.println(currentWorkingDirectory);
 
                 while (connectionIsOpen) {
-                    byte[] messageBuffer = new byte[1000];
-                    int bytesRead  = 0;
-                    boolean nullDetected = false;
-
-                    while(!nullDetected){
-                        byte messageByte = dataFromClientToServer.readByte();
-                        if(messageByte != 0) {
-                            messageBuffer[bytesRead] = messageByte;
-                            bytesRead++;
-                        } else {
-                            nullDetected = true;
-                            bytesRead = 0;
-                        }
-                    }
-
-                    String messageFromClient = new String(removeNull(messageBuffer));
+                    String messageFromClient = receiveTextFromClient();
                     System.out.println(clientSocket + " sent: " + messageFromClient);
 
                     String[] commandAsTokens = parseCommandFromClient(messageFromClient);
@@ -282,13 +268,14 @@ public class Server {
             }
         }
 
-        //TODO convert to linux
+        //TODO use helper function (uses cmd or terminal)
         private void listCommand(String[] args) throws IOException {
             String success = "+";
             String error = "-cannot access '" + "your arg" + "': No such file or directory";
 
             File curDir = new File(currentWorkingDirectory);
             String[] filesInThisDir = curDir.list();
+
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1].toUpperCase();
@@ -296,16 +283,25 @@ public class Server {
                         case "F":
                             System.out.println("Client arg was F");
                             sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            break;
                         case "V":
                             System.out.println("Client arg was V");
                             sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            break;
                         default:
                             sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            break;
                     }
                 }
                 else if (args.length == 3){
+                    String pathToDir = args[2];
+                    File proposedDir = new File(pathToDir);
+
                     System.out.println("Client arg was null");
                     sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                } else if (args.length == 1) {
+                    String noArg = "-Please provide 'F' or 'V' as an argument";
+                    sendTextToClient(noArg);
                 }
                 else {
                     sendTextToClient(error);
@@ -321,23 +317,91 @@ public class Server {
             String notAtDir = "-Can't connect to directory because: file is not a directory";
             String sameDirectory = "-Can't connect to directory because: same as current working directory";
 
+            boolean acctGiven = false;
+            boolean passGiven = false;
+
             File curDir = new File(currentWorkingDirectory);
 
+            //TODO Not currently working when switching drive letters in windows.
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1];
-                    File proposedDir= new File(arg);
+                    File proposedDir = new File(arg);
 
                     if (proposedDir.exists()) {
                         if (proposedDir.isDirectory()) {
                             if (!currentWorkingDirectory.equals(arg)) {
                                 if (isSuperUser) {
-                                    currentWorkingDirectory = arg;
-                                    String changed = "!Changed working dir to " + arg;
+                                    currentWorkingDirectory = proposedDir.getAbsolutePath();
+                                    passGiven = true;
+                                    acctGiven = true;
+                                    String changed = "!Changed working dir to " + proposedDir.getAbsolutePath();
                                     sendTextToClient(changed);
                                 } else {
                                     sendTextToClient(success);
-                                    //TODO: command handling for acct and pass
+                                    String succReturn;
+                                    String[] succArgs;
+                                    while (!acctGiven || !passGiven) {
+                                        succReturn = receiveTextFromClient();
+                                        succArgs = parseCommandFromClient(succReturn);
+
+                                        if (succArgs.length > 0) {
+                                            String succCommand = succArgs[0].toUpperCase();
+                                            switch (succCommand) {
+                                                case "ACCT":
+                                                    String changeA = "!Changed working dir to " + proposedDir.getAbsolutePath();
+                                                    String successA = "+account ok, send password";
+                                                    String failA = "-invalid account";
+                                                    if (succArgs.length == 2) {
+                                                        if (succArgs[1].equals(account)) {
+                                                            if (passGiven) {
+                                                                acctGiven = true;
+                                                                currentWorkingDirectory = proposedDir.getAbsolutePath();
+                                                                sendTextToClient(changeA);
+                                                            } else {
+                                                                acctGiven = true;
+                                                                sendTextToClient(successA);
+                                                            }
+                                                        } else {
+                                                            sendTextToClient(failA);
+                                                            return;
+                                                        }
+                                                    } else {
+                                                        sendTextToClient(failA);
+                                                        return;
+                                                    }
+                                                    break;
+                                                case "PASS":
+                                                    String changeP = "!Changed working dir to " + proposedDir.getAbsolutePath();
+                                                    String successP = "+password ok, send account";
+                                                    String failP = "-invalid password";
+                                                    if (succArgs.length == 2) {
+                                                        if (succArgs[1].equals(pass)) {
+                                                            if (acctGiven) {
+                                                                passGiven = true;
+                                                                currentWorkingDirectory = proposedDir.getAbsolutePath();
+                                                                sendTextToClient(changeP);
+                                                            } else {
+                                                                passGiven = true;
+                                                                sendTextToClient(successP);
+                                                            }
+                                                        } else {
+                                                            sendTextToClient(failP);
+                                                            return;
+                                                        }
+                                                    } else {
+                                                        sendTextToClient(failP);
+                                                        return;
+                                                    }
+                                                    break;
+                                                default:
+                                                    sendTextToClient(success);
+                                                    break;
+                                            }
+                                        } else {
+                                            sendTextToClient(success);
+                                        }
+                                    }
                                 }
                             } else {
                                 sendTextToClient(sameDirectory);
@@ -368,7 +432,7 @@ public class Server {
                     if (proposedFileForDeletion.exists()) {
                         if (!proposedFileForDeletion.isDirectory()) {
                             sendTextToClient("+" + arg + " deleted");
-                            //TODO: handle deletion
+                            Files.delete(proposedFileForDeletion.toPath());
                         } else {
                             sendTextToClient(notAtDir);
                         }
@@ -394,7 +458,9 @@ public class Server {
                     if (proposedFileForDeletion.exists()) {
                         String fileExists = "+File exists";
                         sendTextToClient(fileExists);
-                        //TODO implement extra message logic
+                        //TODO implement TOBE logic
+                            String success = "+<old-file-spec> renamed to <new-file-spec>";
+                            String fail = "-File wasn't renamed because (reason)";
                     } else {
                         String fileNotExist = "-Can't find " + arg;
                         sendTextToClient(fileNotExist);
@@ -425,14 +491,28 @@ public class Server {
         }
 
         private void retrCommand(String[] args) throws IOException {
-            String success = "+";
-            String error = "-";
+            String fileNotExist = "-File doesn't exist";
+            String notAtDir = "-Can't connect to directory because: file is not a directory";
+            String sameDirectory = "-Can't connect to directory because: same as current working directory";
+            File curDir = new File(currentWorkingDirectory);
+
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
-                    sendTextToClient(Server.POS_GREETING);
-                }
-                else {
-                    sendTextToClient(Server.POS_GREETING);
+                    String arg = args[1];
+                    File fileToBeSent= new File(currentWorkingDirectory + File.separator + arg);
+
+                    if (fileToBeSent.exists()) {
+                        if (!fileToBeSent.isDirectory()) {
+                            sendTextToClient(" " + fileToBeSent.length());
+                            //TODO send file code
+                        } else {
+                            sendTextToClient(fileNotExist);
+                        }
+                    } else {
+                        sendTextToClient(fileNotExist);
+                    }
+                } else {
+                    sendTextToClient(fileNotExist);
                 }
             } else {
                 sendTextToClient(notLoggedIn);
@@ -440,14 +520,34 @@ public class Server {
         }
 
         private void storCommand(String[] args) throws IOException {
-            String success = "+";
-            String error = "-";
+            String notEnoughArgs = "-Not enough arguments";
+
+            File curDir = new File(currentWorkingDirectory);
+            String[] filesInThisDir = curDir.list();
+
             if (isFullyAuthenticated()) {
-                if (args.length == 2) {
-                    sendTextToClient(Server.POS_GREETING);
-                }
-                else {
-                    sendTextToClient(Server.POS_GREETING);
+                if (args.length == 3) {
+                    String arg = args[1].toUpperCase();
+                    switch(arg) {
+                        case "NEW":
+                            System.out.println("Client arg was NEW");
+                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            break;
+                        case "OLD":
+                            System.out.println("Client arg was OLD");
+                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            break;
+                        case "APP":
+                            System.out.println("Client arg was APP");
+                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            break;
+                        default:
+                            String invalidArgument = "-Invalid argument, please send NEW, OLD or APP as the second argument";
+                            sendTextToClient(invalidArgument);
+                            break;
+                    }
+                } else {
+                    sendTextToClient(notEnoughArgs);
                 }
             } else {
                 sendTextToClient(notLoggedIn);
@@ -489,6 +589,26 @@ public class Server {
             System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
             dataToClientFromServer.write(byteArrayWithNull, 0, byteArrayWithNull.length);
             dataToClientFromServer.flush();
+        }
+
+        private String receiveTextFromClient() throws IOException {
+            byte[] messageBuffer = new byte[1000];
+            int bytesRead  = 0;
+            boolean nullDetected = false;
+
+            while(!nullDetected){
+                byte messageByte = dataFromClientToServer.readByte();
+                if(messageByte != 0) {
+                    messageBuffer[bytesRead] = messageByte;
+                    bytesRead++;
+                } else {
+                    nullDetected = true;
+                    bytesRead = 0;
+                }
+            }
+
+            String messageFromClient = new String(removeNull(messageBuffer));
+            return messageFromClient;
         }
 
         private boolean userIdExists(String idTocheck){
@@ -550,8 +670,39 @@ public class Server {
             return true;
         }
 
-        private void callFromCommandLine(String command) {
+        private void callLsFromCommandLine(String command) throws IOException, InterruptedException {
+            String[] linuxArgs = new String[] {"/bin/bash", "-c", "ls", "-l"};
+            String[] windowsArgs = new String[] {"cmd.exe", "/c", "dir", "/q"};
+            Process pr = new ProcessBuilder(windowsArgs).start();
 
+            BufferedReader input =
+                    new BufferedReader(new InputStreamReader(pr.getInputStream()));
+
+            BufferedReader error =
+                    new BufferedReader(new InputStreamReader(pr.getErrorStream()));
+
+            StringBuilder inputBuilder = new StringBuilder();
+            String line = null;
+            while ( (line = input.readLine()) != null) {
+                inputBuilder.append(line);
+                inputBuilder.append(System.getProperty("line.separator"));
+            }
+
+            StringBuilder errorBuilder = new StringBuilder();
+            String errorline = null;
+            while ( (errorline = error.readLine()) != null) {
+                errorBuilder.append(errorline);
+                errorBuilder.append(System.getProperty("line.separator"));
+            }
+
+            String result = inputBuilder.toString();
+            String errorResult = errorBuilder.toString();
+
+            System.out.println("Program output: " + result);
+            System.out.println("Error output: " + errorResult);
+
+            int exitCode = pr.waitFor();
+            System.out.println("\nExited with error code : " + exitCode);
         }
 
         private String getOperatingSystem() {
