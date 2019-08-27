@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Scanner;
 
+/***********************************************   Server Code   ******************************************************/
 public class Server {
     private ServerSocket server;
     private boolean isHandlingRequests;
@@ -12,6 +13,9 @@ public class Server {
                                                                                                         };
     private final static String POS_GREETING = "+UOA-XX SFTP Service";
     private final static String NEG_GREETING = "-UOA-XX Out to Lunch";
+    private final static String userNotSpecified = "-User not specified";
+    private final static String notLoggedIn = "-Not yet authenticated, please complete login process";
+    private final static String superUserID = "super";
 
     // constructor with port
     private Server() {
@@ -48,6 +52,8 @@ public class Server {
         server.close();
     }
 
+
+    /**************************************   Code that handles clients   *********************************************/
     private static class ClientHandler extends Thread {
         private Socket clientSocket;
 
@@ -58,6 +64,10 @@ public class Server {
         private String user;
         private String pass;
         private String account;
+        private boolean isSuperUser = false;
+
+        private Profile currentProfileLoggedIn;
+
 
         String currentWorkingDirectory = System.getProperty("user.dir");
 
@@ -73,7 +83,8 @@ public class Server {
                 dataFromClientToServer = new DataInputStream(clientSocket.getInputStream());
                 dataToClientFromServer = new DataOutputStream(clientSocket.getOutputStream());
                 sendTextToClient(Server.POS_GREETING);
-System.out.println(currentWorkingDirectory);
+                System.out.println(currentWorkingDirectory);
+
                 while (connectionIsOpen) {
                     byte[] messageBuffer = new byte[1000];
                     int bytesRead  = 0;
@@ -159,11 +170,19 @@ System.out.println(currentWorkingDirectory);
             String error = "-Invalid user-id, try again";
 
             if (isFullyAuthenticated() || userHasBeenGiven()) {
-                String alreadyLoggedIn = "!" + user + " logged in";
+                String alreadyLoggedIn = "! " + user + " logged in";
                 sendTextToClient(alreadyLoggedIn);
             } else {
                 if (args.length == 2) {
-                    if(userIdExists(args[1])) {
+                    if (args[1].equals(superUserID)) {
+                        user = superUserID;
+                        account = superUserID;
+                        pass = superUserID;
+                        isSuperUser = true;
+                        String alreadyLoggedIn = "! " + user + " logged in";
+                        sendTextToClient(alreadyLoggedIn);
+                    }
+                    else if(userIdExists(args[1])) {
                         user = args[1];
                         sendTextToClient(success);
                     } else {
@@ -180,7 +199,6 @@ System.out.println(currentWorkingDirectory);
             String loggedIn = "! Account valid, logged-in";
             String success = "+Account valid, send password";
             String error = "-Invalid account, try again";
-            String userNotSpecified = "-User not specified";
 
             if (isFullyAuthenticated()) {
                 sendTextToClient(loggedIn);
@@ -188,8 +206,8 @@ System.out.println(currentWorkingDirectory);
                 if (userHasBeenGiven()) {
                     if(args.length == 2) {
                         if(accountExistsForId(args[1])) {
+                            account = args[1];
                             if(passHasBeenGiven()){
-                                account = args[1];
                                 sendTextToClient(loggedIn);
                             } else {
                                 sendTextToClient(success);
@@ -210,7 +228,6 @@ System.out.println(currentWorkingDirectory);
             String loggedIn = "! Logged in";
             String success = "+Send account";
             String error = "-Wrong password, try again";
-            String userNotSpecified = "-User not specified";
 
             if (isFullyAuthenticated()) {
                 sendTextToClient(loggedIn);
@@ -218,8 +235,8 @@ System.out.println(currentWorkingDirectory);
                 if (userHasBeenGiven()) {
                     if(args.length == 2) {
                         if(passCorrect(args[1])) {
+                            pass = args[1];
                             if(accountHasBeenGiven()){
-                                pass = args[1];
                                 sendTextToClient(loggedIn);
                             } else {
                                 sendTextToClient(success);
@@ -241,115 +258,183 @@ System.out.println(currentWorkingDirectory);
             String successB = "+Using Binary mode";
             String successC = "+Using Continuous mode";
             String error = "-Type not valid";
-            if (args.length == 2) {
-                if (args[1].toUpperCase().equals("A")) {
-                    sendMode = SendMode.ASCII;
-                    sendTextToClient(successA);
-                } else if (args[1].toUpperCase().equals("B")) {
-                    sendMode = SendMode.BINARY;
-                    sendTextToClient(successB);
-                } else if (args[1].toUpperCase().equals("C")) {
-                    sendMode = SendMode.CONTINUOUS;
-                    sendTextToClient(successC);
-                } else {
+
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    if (args[1].toUpperCase().equals("A")) {
+                        sendMode = SendMode.ASCII;
+                        sendTextToClient(successA);
+                    } else if (args[1].toUpperCase().equals("B")) {
+                        sendMode = SendMode.BINARY;
+                        sendTextToClient(successB);
+                    } else if (args[1].toUpperCase().equals("C")) {
+                        sendMode = SendMode.CONTINUOUS;
+                        sendTextToClient(successC);
+                    } else {
+                        sendTextToClient(error);
+                    }
+                }
+                else {
                     sendTextToClient(error);
                 }
-            }
-            else {
-                sendTextToClient(error);
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
+        //TODO convert to linux
         private void listCommand(String[] args) throws IOException {
             String success = "+";
-            String error = "-";
-            if (args.length == 2) {
-                String arg = args[1].toUpperCase();
-                switch(arg) {
-                    case "F":;
-                    case "V":;
-                    default:
-                        File curDir = new File(currentWorkingDirectory);
-                        String[] filesInThisDir = curDir.list();
-                        sendTextToClient(formatDirectoryFiles(filesInThisDir));
+            String error = "-cannot access '" + "your arg" + "': No such file or directory";
+
+            File curDir = new File(currentWorkingDirectory);
+            String[] filesInThisDir = curDir.list();
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    String arg = args[1].toUpperCase();
+                    switch(arg) {
+                        case "F":
+                            System.out.println("Client arg was F");
+                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                        case "V":
+                            System.out.println("Client arg was V");
+                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                        default:
+                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                    }
                 }
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+                else if (args.length == 3){
+                    System.out.println("Client arg was null");
+                    sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                }
+                else {
+                    sendTextToClient(error);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
         private void cdirCommand(String[] args) throws IOException {
-            String success = "+";
-            String error = "-";
+            String success = "+directory ok, send account/password";
+            String fileNotExist = "-Can't connect to directory because: file doesn't exist";
+            String notAtDir = "-Can't connect to directory because: file is not a directory";
+            String sameDirectory = "-Can't connect to directory because: same as current working directory";
             String loggedIn = "!";
-            if (args.length == 2) {
-                sendTextToClient(Server.POS_GREETING);
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+
+            File curDir = new File(currentWorkingDirectory);
+
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    String arg = args[1];
+                    File proposedDir= new File(arg);
+
+                    if (proposedDir.exists()) {
+                        if (proposedDir.isDirectory()) {
+                            if (!currentWorkingDirectory.equals(arg)) {
+                                if (isSuperUser) {
+                                    currentWorkingDirectory = arg;
+                                    String changed = "!Changed working dir to " + arg;
+                                    sendTextToClient(changed);
+                                } else {
+                                    //TODO: command handling for acct and pass
+                                }
+                            } else {
+                                sendTextToClient(sameDirectory);
+                            }
+                        } else {
+                            sendTextToClient(notAtDir);
+                        }
+                    } else {
+                        sendTextToClient(fileNotExist);
+                    }
+                } else {
+                    sendTextToClient(fileNotExist);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
         private void killCommand(String[] args) throws IOException {
             String success = "+";
             String error = "-";
-            if (args.length == 2) {
-                sendTextToClient(Server.POS_GREETING);
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+                else {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
         private void nameCommand(String[] args) throws IOException {
             String success = "+";
             String error = "-";
-            if (args.length == 2) {
-                sendTextToClient(Server.POS_GREETING);
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+                else {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
         private void doneCommand(String[] args) throws IOException {
             String success = "+Your account has been charged";
-            if (args.length == 2) {
-                sendTextToClient(Server.POS_GREETING);
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+                else {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
         private void retrCommand(String[] args) throws IOException {
             String success = "+";
             String error = "-";
-            if (args.length == 2) {
-                sendTextToClient(Server.POS_GREETING);
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+                else {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
         private void storCommand(String[] args) throws IOException {
             String success = "+";
             String error = "-";
-            if (args.length == 2) {
-                sendTextToClient(Server.POS_GREETING);
-            }
-            else {
-                sendTextToClient(Server.POS_GREETING);
+            if (isFullyAuthenticated()) {
+                if (args.length == 2) {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+                else {
+                    sendTextToClient(Server.POS_GREETING);
+                }
+            } else {
+                sendTextToClient(notLoggedIn);
             }
         }
 
 
 
-
+        /****************************************   Helper Functions   ************************************************/
         private String[] parseCommandFromClient(String commandFromClient) {
-            String[] tokenizedCommand = commandFromClient.trim().split("\\s+");
+            String[] tokenizedCommand = commandFromClient.trim().split("\\s+", 3);
 //            for (String command : tokenizedCommand) {
 ////                System.out.println(command);
 ////            }
@@ -380,11 +465,6 @@ System.out.println(currentWorkingDirectory);
             System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
             dataToClientFromServer.write(byteArrayWithNull, 0, byteArrayWithNull.length);
             dataToClientFromServer.flush();
-        }
-
-        private void sendAuthErrorToClient() throws IOException {
-            String authErrorMessage = "-Please authenticate first";
-            sendTextToClient(authErrorMessage);
         }
 
         private boolean userIdExists(String idTocheck){
@@ -462,11 +542,11 @@ System.out.println(currentWorkingDirectory);
             for (String s : listOfFiles) {
                 filesAsString.append(s + System.lineSeparator());
             }
-            filesAsString.append("\0");
             return filesAsString.toString();
         }
     }
 
+    /******************************************** Server entry code ***************************************************/
     public static void main(String args[]) throws IOException {
         int inputPort = 5000;
         Server server = new Server();
