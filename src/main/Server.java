@@ -158,8 +158,6 @@ public class Server {
                     System.out.println("Sent return message to client: " + clientSocket);
                     System.out.println("");
                 }
-            } catch (EOFException e) {
-                System.out.println("End Of File detected");
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -320,7 +318,6 @@ public class Server {
             String fileNotExist = "-Can't connect to directory because: file doesn't exist";
             String notAtDir = "-Can't connect to directory because: file is not a directory";
             String sameDirectory = "-Can't connect to directory because: same as current working directory";
-            String loggedIn = "!";
 
             File curDir = new File(currentWorkingDirectory);
 
@@ -337,6 +334,7 @@ public class Server {
                                     String changed = "!Changed working dir to " + arg;
                                     sendTextToClient(changed);
                                 } else {
+                                    sendTextToClient(success);
                                     //TODO: command handling for acct and pass
                                 }
                             } else {
@@ -357,14 +355,26 @@ public class Server {
         }
 
         private void killCommand(String[] args) throws IOException {
-            String success = "+";
-            String error = "-";
+            String fileNotExist = "-Not deleted because: file doesn't exist";
+            String notAtDir = "-Not deleted because: file is a directory";
+
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
-                    sendTextToClient(Server.POS_GREETING);
-                }
-                else {
-                    sendTextToClient(Server.POS_GREETING);
+                    String arg = args[1];
+                    File proposedFileForDeletion= new File(arg);
+
+                    if (proposedFileForDeletion.exists()) {
+                        if (!proposedFileForDeletion.isDirectory()) {
+                            sendTextToClient("+" + arg + " deleted");
+                            //TODO: handle deletion
+                        } else {
+                            sendTextToClient(notAtDir);
+                        }
+                    } else {
+                        sendTextToClient(fileNotExist);
+                    }
+                } else {
+                    sendTextToClient(fileNotExist);
                 }
             } else {
                 sendTextToClient(notLoggedIn);
@@ -372,14 +382,23 @@ public class Server {
         }
 
         private void nameCommand(String[] args) throws IOException {
-            String success = "+";
-            String error = "-";
+            String badArgument = "-Not renamed because: file doesn't exist";
+
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
-                    sendTextToClient(Server.POS_GREETING);
-                }
-                else {
-                    sendTextToClient(Server.POS_GREETING);
+                    String arg = args[1];
+                    File proposedFileForDeletion= new File(arg);
+
+                    if (proposedFileForDeletion.exists()) {
+                        String fileExists = "+File exists";
+                        sendTextToClient(fileExists);
+                        //TODO implement extra message logic
+                    } else {
+                        String fileNotExist = "-Can't find " + arg;
+                        sendTextToClient(fileNotExist);
+                    }
+                } else {
+                    sendTextToClient(badArgument);
                 }
             } else {
                 sendTextToClient(notLoggedIn);
@@ -387,7 +406,7 @@ public class Server {
         }
 
         private void doneCommand(String[] args) throws IOException {
-            String success = "+Your account has been charged";
+            String success = "+Your account has been invoiced";
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     sendTextToClient(Server.POS_GREETING);
