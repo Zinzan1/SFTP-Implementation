@@ -4,6 +4,8 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Scanner;
 
 /***********************************************   Server Code   ******************************************************/
@@ -133,8 +135,6 @@ public class Server {
                             System.out.println(clientSocket + " sent bad command: " + messageFromClient);
                             break;
                     }
-                    System.out.println("Sent return message to client: " + clientSocket);
-                    System.out.println("");
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -302,7 +302,7 @@ public class Server {
                 sendTextToClient(notLoggedIn);
             }
         }
-
+//TODO make sure the end of path has a slash.
         private void cdirCommand(String[] args) throws IOException {
             String success = "+directory ok, send account/password";
             String fileNotExist = "-Can't connect to directory because: file doesn't exist";
@@ -420,7 +420,7 @@ public class Server {
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1];
-                    File proposedFileForDeletion= new File(arg);
+                    File proposedFileForDeletion= new File(currentWorkingDirectory + System.lineSeparator() + arg);
 
                     if (proposedFileForDeletion.exists()) {
                         if (!proposedFileForDeletion.isDirectory()) {
@@ -442,20 +442,49 @@ public class Server {
 
         private void nameCommand(String[] args) throws IOException {
             String badArgument = "-Not renamed because: file doesn't exist";
+            String oldFileName;
+            String newFileName;
 
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
-                    String arg = args[1];
-                    File proposedFileForDeletion= new File(arg);
-
-                    if (proposedFileForDeletion.exists()) {
+                    File proposedFileForRename = new File(currentWorkingDirectory + System.lineSeparator() + args[1]);
+                    if (proposedFileForRename.exists()) {
                         String fileExists = "+File exists";
                         sendTextToClient(fileExists);
-                        //TODO implement TOBE logic
-                            String success = "+<old-file-spec> renamed to <new-file-spec>";
-                            String fail = "-File wasn't renamed because (reason)";
+                        oldFileName = proposedFileForRename.getAbsolutePath();
+                        String tobeReturn = receiveTextFromClient();
+                        String tobeargs[] = parseCommandFromClient(tobeReturn);
+
+                        if (tobeargs.length == 2) {
+                            switch(tobeargs[0].toUpperCase()) {
+                                case "TOBE":
+                                    String newFilePath = new File(tobeargs[1]).getAbsolutePath();
+                                    File renamedFile = new File(currentWorkingDirectory + System.lineSeparator() + newFilePath);
+                                    if (!renamedFile.exists()) {
+                                        newFileName = tobeargs[1];
+                                        if (proposedFileForRename.renameTo(renamedFile)) {
+                                            String renameSuccess = "+" + oldFileName + " renamed to " + newFileName;
+                                            sendTextToClient(renameSuccess);
+                                        } else {
+                                            String newNameTaken = "-File wasn't renamed because: operation failed";
+                                            sendTextToClient(newNameTaken);
+                                        }
+                                    } else {
+                                        String newNameTaken = "-File wasn't renamed because: TOBE name already taken";
+                                        sendTextToClient(newNameTaken);
+                                    }
+                                    break;
+                                default:
+                                    String wrongCommand = "-File wasn't renamed because: must send TOBE after NAME";
+                                    sendTextToClient(wrongCommand);
+                                    break;
+                            }
+                        } else {
+                            String badArgs = "-File wasn't renamed because: wrong number of arguments for TOBE";
+                            sendTextToClient(badArgs);
+                        }
                     } else {
-                        String fileNotExist = "-Can't find " + arg;
+                        String fileNotExist = "-Can't find " + args[1];
                         sendTextToClient(fileNotExist);
                     }
                 } else {
@@ -485,12 +514,11 @@ public class Server {
 
         private void retrCommand(String[] args) throws IOException {
             String fileNotExist = "-File doesn't exist";
-            File curDir = new File(currentWorkingDirectory);
 
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1];
-                    File fileToBeSent= new File(currentWorkingDirectory + File.separator + arg);
+                    File fileToBeSent= new File(currentWorkingDirectory + arg);
 
                     if (fileToBeSent.exists()) {
                         if (!fileToBeSent.isDirectory()) {
@@ -498,33 +526,29 @@ public class Server {
 
                             String succReturn;
                             String[] succArgs;
-                            boolean validCommand = false;
-                            String badCommand = " " + fileToBeSent.length() + " file exists, please send either a 'SEND' or 'STOP' command ";
+                            String badCommand = "-please send a SEND or STOP command after RETR";
 
-                            while (!validCommand) {
-                                succReturn = receiveTextFromClient();
-                                succArgs = parseCommandFromClient(succReturn);
+                            succReturn = receiveTextFromClient();
+                            succArgs = parseCommandFromClient(succReturn);
 
-                                if (succArgs.length == 1) {
-                                    String succCommand = succArgs[0].toUpperCase();
-                                    switch (succCommand) {
-                                        case "SEND":
-                                            validCommand = true;
-                                            sendTextToClient("*Sending Now");
-                                            //TODO send file code
-                                            break;
-                                        case "STOP":
-                                            validCommand = true;
-                                            String abortSuccess = "+ok, RETR aborted";
-                                            sendTextToClient(abortSuccess);
-                                            break;
-                                        default:
-                                            sendTextToClient(badCommand);
-                                            break;
-                                    }
-                                } else {
-                                    sendTextToClient(badCommand);
+                            if (succArgs.length == 1) {
+                                String succCommand = succArgs[0].toUpperCase();
+                                switch (succCommand) {
+                                    case "SEND":
+                                        sendTextToClient("*" + fileToBeSent.getName());
+                                        byte[] bytesToSend = Files.readAllBytes(fileToBeSent.toPath());
+                                        sendBytes(bytesToSend);
+                                        break;
+                                    case "STOP":
+                                        String abortSuccess = "+ok, RETR aborted";
+                                        sendTextToClient(abortSuccess);
+                                        break;
+                                    default:
+                                        sendTextToClient(badCommand);
+                                        break;
                                 }
+                            } else {
+                                sendTextToClient(badCommand);
                             }
                         } else {
                             sendTextToClient(fileNotExist);
@@ -548,7 +572,8 @@ public class Server {
                 if (args.length == 3) {
                     String arg = args[1].toUpperCase();
                     String nameOfFiletoSave = currentWorkingDirectory + File.separator + args[2];
-                    boolean fileExists = new File(nameOfFiletoSave).exists();
+                    File potentialFile = new File(nameOfFiletoSave);
+                    boolean fileExists = potentialFile.exists();
                     boolean supportsGenerations = false;
                     String succStorReturn;
                     String succStorArgs[];
@@ -569,11 +594,15 @@ public class Server {
                                             sendTextToClient("-please enter a valid number of bytes");
                                             break;
                                         }
+
                                         switch (sizeArg) {
                                             case "SIZE":
                                                 if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
                                                     sendTextToClient("+ok, waiting for file");
-                                                    //TODO: Add receive functionality
+                                                    byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                                                    Files.write(potentialFile.toPath(), fileAsBytes);
+                                                    sendTextToClient("+Saved " + potentialFile.getName());
+                                                    //sendTextToClient("-Couldn't save because (reason)");
                                                 } else {
                                                     sendTextToClient("-Not enough room, don't send it");
                                                 }
@@ -601,11 +630,15 @@ public class Server {
                                         sendTextToClient("-please enter a valid number of bytes");
                                         break;
                                     }
+
                                     switch (sizeArg) {
                                         case "SIZE":
                                             if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
                                                 sendTextToClient("+ok, waiting for file");
-                                                //TODO: Add receive functionality
+                                                byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                                                Files.write(potentialFile.toPath(), fileAsBytes);
+                                                sendTextToClient("+Saved " + potentialFile.getName());
+                                                //sendTextToClient("-Couldn't save because (reason)");
                                             } else {
                                                 sendTextToClient("-Not enough room, don't send it");
                                             }
@@ -633,11 +666,15 @@ public class Server {
                                         sendTextToClient("-please enter a valid number of bytes");
                                         break;
                                     }
+
                                     switch (sizeArg) {
                                         case "SIZE":
                                             if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
                                                 sendTextToClient("+ok, waiting for file");
-                                                //TODO: Add receive functionality
+                                                byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                                                Files.write(potentialFile.toPath(), fileAsBytes);
+                                                sendTextToClient("+Saved " + potentialFile.getName());
+                                                //sendTextToClient("-Couldn't save because (reason)");
                                             } else {
                                                 sendTextToClient("-Not enough room, don't send it");
                                             }
@@ -662,11 +699,15 @@ public class Server {
                                         sendTextToClient("-please enter a valid number of bytes");
                                         break;
                                     }
+
                                     switch (sizeArg) {
                                         case "SIZE":
                                             if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
                                                 sendTextToClient("+ok, waiting for file");
-                                                //TODO: Add receive functionality
+                                                byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                                                Files.write(potentialFile.toPath(), fileAsBytes);
+                                                sendTextToClient("+Saved " + potentialFile.getName());
+                                                //sendTextToClient("-Couldn't save because (reason)");
                                             } else {
                                                 sendTextToClient("-Not enough room, don't send it");
                                             }
@@ -694,11 +735,15 @@ public class Server {
                                         sendTextToClient("-please enter a valid number of bytes");
                                         break;
                                     }
+
                                     switch (sizeArg) {
                                         case "SIZE":
                                             if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
                                                 sendTextToClient("+ok, waiting for file");
-                                                //TODO: Add receive functionality
+                                                byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                                                Files.write(potentialFile.toPath(), fileAsBytes, StandardOpenOption.APPEND);
+                                                sendTextToClient("+Saved " + potentialFile.getName());
+                                                //sendTextToClient("-Couldn't save because (reason)");
                                             } else {
                                                 sendTextToClient("-Not enough room, don't send it");
                                             }
@@ -723,11 +768,15 @@ public class Server {
                                         sendTextToClient("-please enter a valid number of bytes");
                                         break;
                                     }
+
                                     switch (sizeArg) {
                                         case "SIZE":
                                             if (numberOfBytes <= new File(currentWorkingDirectory).getUsableSpace()) {
                                                 sendTextToClient("+ok, waiting for file");
-                                                //TODO: Add receive functionality
+                                                byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                                                Files.write(potentialFile.toPath(), fileAsBytes);
+                                                sendTextToClient("+Saved " + potentialFile.getName());
+                                                //sendTextToClient("-Couldn't save because (reason)");
                                             } else {
                                                 sendTextToClient("-Not enough room, don't send it");
                                             }
@@ -786,19 +835,33 @@ public class Server {
             byte[] stringAsByteArray = string.getBytes("ISO646-US");
             byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
             System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
-            dataToClientFromServer.write(byteArrayWithNull, 0, byteArrayWithNull.length);
-            dataToClientFromServer.flush();
+            sendBytes(byteArrayWithNull);
+            System.out.println("Sent [ " + string + " ] return message to client: " + clientSocket);
+            System.out.println("");
         }
 
         private String receiveTextFromClient() throws IOException {
-            byte[] messageBuffer = new byte[1000];
-            int bytesRead  = 0;
-            boolean nullDetected = false;
+            byte[] messageBuffer = receiveBytes(10000000);
 
-            while(!nullDetected){
-                byte messageByte = dataFromClientToServer.readByte();
+            String messageFromClient = new String(removeNull(messageBuffer));
+            return messageFromClient;
+        }
+
+        private void sendBytes(byte[] bytesToSend) throws IOException {
+            dataToClientFromServer.write(bytesToSend, 0, bytesToSend.length);
+            dataToClientFromServer.flush();
+        }
+
+        private byte[] receiveBytes(long numberOfbytes) throws IOException {
+            byte[] returnedBytes = new byte[(int)numberOfbytes];
+            int bytesRead = 0;
+            boolean nullDetected = false;
+            byte messageByte;
+
+            while(!nullDetected && bytesRead < (int) numberOfbytes){
+                messageByte = dataFromClientToServer.readByte();
                 if(messageByte != 0) {
-                    messageBuffer[bytesRead] = messageByte;
+                    returnedBytes[bytesRead] = messageByte;
                     bytesRead++;
                 } else {
                     nullDetected = true;
@@ -806,8 +869,7 @@ public class Server {
                 }
             }
 
-            String messageFromClient = new String(removeNull(messageBuffer));
-            return messageFromClient;
+            return returnedBytes;
         }
 
         private boolean userIdExists(String idTocheck){

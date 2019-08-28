@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.file.Files;
 import java.util.Random;
 import java.util.Scanner;
 
@@ -37,7 +38,7 @@ public class Client {
                 if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("+")) {
                     String inputForCDIR;
                     while (!String.valueOf(cdirReturnedMessage.charAt(0)).equals("!") || !String.valueOf(cdirReturnedMessage.charAt(0)).equals("-")) {
-                        inputForCDIR= scan.nextLine();
+                        inputForCDIR = scan.nextLine();
                         sendTextToServer(inputForCDIR);
                         cdirReturnedMessage = receiveTextFromServer(true);
                     }
@@ -61,7 +62,7 @@ public class Client {
                 if (String.valueOf(nameReturnedMessage.charAt(0)).equals("+")) {
                     String inputForTOBE = scan.nextLine();
                     sendTextToServer(inputForTOBE);
-                    receiveTextFromServer(true);
+                    String tobeReturnMessage = receiveTextFromServer(true);
 
                 } else if (String.valueOf(nameReturnedMessage.charAt(0)).equals("-")) {
 
@@ -74,18 +75,21 @@ public class Client {
                 String retrReturnedMessage = receiveTextFromServer(true);
 
                 if (String.valueOf(retrReturnedMessage.charAt(0)).equals(" ")) {
+                    int numberOfBytes = (int) Long.parseLong(retrReturnedMessage.substring(1));
                     String inputForCDIR;
-                    while (String.valueOf(retrReturnedMessage.charAt(0)).equals(" ")) {
-                        inputForCDIR= scan.nextLine();
-                        sendTextToServer(inputForCDIR);
-                        retrReturnedMessage = receiveTextFromServer(false);
+                    inputForCDIR = scan.nextLine();
+                    sendTextToServer(inputForCDIR);
+                    retrReturnedMessage = receiveTextFromServer(false);
 
-                        if (!String.valueOf(retrReturnedMessage.charAt(0)).equals("*")) {
-                            System.out.println(retrReturnedMessage);
-                        } else {
-                            //TODO receive bytes
-                            break;
-                        }
+                    if (!String.valueOf(retrReturnedMessage.charAt(0)).equals("*")) {
+                        System.out.println(retrReturnedMessage);
+                    } else {
+                        String nameOfRemoteFile = retrReturnedMessage.substring(1);
+                        String pathOfFile = System.getProperty("user.dir") + File.separator + nameOfRemoteFile;
+                        System.out.println(System.getProperty("user.dir"));
+                        byte[] fileAsBytes = receiveBytes(numberOfBytes);
+                        Files.write(new File(pathOfFile).toPath(), fileAsBytes);
+                        break;
                     }
                 } else if (String.valueOf(retrReturnedMessage.charAt(0)).equals("-")) {
                     System.out.println("done RETR -"); //debugging purposes
@@ -94,36 +98,46 @@ public class Client {
                 }
                 break;
             case "STOR":
-                // Send STOR command
-                sendTextToServer(messageToServer);
+                if (commandAsTokens.length == 3) {
+                    String nameOfFile = commandAsTokens[2];
+                    String pathOfFile = System.getProperty("user.dir") + File.separator + nameOfFile;
+                    File fileToBeSent = new File(pathOfFile);
+                    if (fileToBeSent.exists()) {
+                        // Send STOR command
+                        sendTextToServer(messageToServer);
 
-                // Response from server
-                String storReturnedMessage = receiveTextFromServer(true);
+                        // Response from server
+                        String storReturnedMessage = receiveTextFromServer(true);
 
-                // If response code is success
-                if (String.valueOf(storReturnedMessage.charAt(0)).equals("+")) {
-                    String inputForCDIR  = scan.nextLine();
-                    sendTextToServer(inputForCDIR);
-                    storReturnedMessage = receiveTextFromServer(true);
+                        // If response code is success
+                        if (String.valueOf(storReturnedMessage.charAt(0)).equals("+")) {
+                            String inputForCDIR = scan.nextLine();
+                            sendTextToServer(inputForCDIR);
+                            storReturnedMessage = receiveTextFromServer(true);
 
-                    // Server response for SIZE command
-                    if (String.valueOf(storReturnedMessage.charAt(0)).equals("+")) {
-                    // TODO: send bytes to server
-                    //  Receive last server response
-                        //+Saved <file-spec>
-                        //-Couldn't save because (reason)
-                    } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
+                            // Server response for SIZE command
+                            if (String.valueOf(storReturnedMessage.charAt(0)).equals("+")) {
+                                byte[] bytesToSend = Files.readAllBytes(fileToBeSent.toPath());
+                                sendBytes(bytesToSend);
+                                receiveTextFromServer(true);
+                            } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
 
+                            } else {
+                            }
+
+                            // If response code is a failure
+                        } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
+                            System.out.println("done STOR -"); //debugging purposes
+
+                            // Safety else statement (shouldn't be executed)
+                        } else {
+                            System.out.println("-An unexpected error has occurred");
+                        }
                     } else {
+                        System.out.println("-Please enter a valid file as the 3rd argument");
                     }
-
-                // If response code is a failure
-                } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
-                    System.out.println("done STOR -"); //debugging purposes
-
-                // Safety else statement (shouldn't be executed)
                 } else {
-                    System.out.println("-An unexpected error has occurred");
+                    System.out.println("-Please provide STOR in the form: STOR { NEW | OLD | APP } file-spec");
                 }
                 break;
             default:
@@ -188,21 +202,36 @@ public class Client {
         byte[] stringAsByteArray = string.getBytes("ISO646-US");
         byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
         System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
-        dataToServerFromClient.write(byteArrayWithNull, 0, byteArrayWithNull.length);
-        dataToServerFromClient.flush();
+        sendBytes(byteArrayWithNull);
         System.out.println("Sent Message: " + string + "\0");
     }
 
     private String receiveTextFromServer(boolean printOutput) throws IOException {
-        byte[] messageBuffer = new byte[1000];
+
+        byte[] messageBuffer = receiveBytes(10000000);
+        String returnedMessage = new String(removeNull(messageBuffer));
+        if (printOutput) {
+            System.out.println("Received message: " + returnedMessage + " from server");
+        }
+        return returnedMessage;
+    }
+
+    private void sendBytes(byte[] bytesToSend) throws IOException {
+        dataToServerFromClient.write(bytesToSend, 0, bytesToSend.length);
+        dataToServerFromClient.flush();
+    }
+
+    private byte[] receiveBytes(long numberOfbytes) throws IOException {
+        byte[] returnedBytes = new byte[(int)numberOfbytes];
         int bytesRead = 0;
         boolean nullDetected = false;
+        byte messageByte;
 
-        while (!nullDetected) {
-            byte messageByte = dataFromServerToClient.readByte();
+        while (!nullDetected && bytesRead < (int) numberOfbytes) {
+            messageByte = dataFromServerToClient.readByte();
 
             if (messageByte != 0) {
-                messageBuffer[bytesRead] = messageByte;
+                returnedBytes[bytesRead] = messageByte;
                 bytesRead++;
             } else {
                 nullDetected = true;
@@ -210,11 +239,7 @@ public class Client {
             }
         }
 
-        String returnedMessage = new String(removeNull(messageBuffer));
-        if (printOutput) {
-            System.out.println("Received message: " + returnedMessage + " from server");
-        }
-        return returnedMessage;
+        return returnedBytes;
     }
 
     public static void main(String args[]) throws IOException {
