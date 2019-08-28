@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.util.Random;
 import java.util.Scanner;
 
+// Below is the code for the client.
 public class Client {
 
     // initialize socket and input output streams
@@ -25,6 +26,10 @@ public class Client {
         clientSocket.close();
     }
 
+    // This is the bulk of the code on the client end
+    // I have tried to defer most of the actual processing to the server whenever possible
+    // However, some commands require the client to be in a certain state.
+    // Those are the commands that are in the switch statement.
     private void sendMessage(String messageToServer) throws IOException {
         boolean atEndOfString = false;
         String[] commandAsTokens = parseCommandFromClient(messageToServer);
@@ -43,16 +48,15 @@ public class Client {
                         cdirReturnedMessage = receiveTextFromServer(true);
                     }
                 } else if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("-")) {
-                    System.out.println("done CDIR -");
+
                 } else if (String.valueOf(cdirReturnedMessage.charAt(0)).equals("!")) {
-                    System.out.println("done CDIR !");
+
                 } else {
                     System.out.println("-An unexpected error has occurred");
                 }
                 break;
             case "DONE":
                 // close connection
-                System.out.println("Closing connection");
                 stopConnection();
                 break;
             case "NAME":
@@ -92,7 +96,7 @@ public class Client {
                         break;
                     }
                 } else if (String.valueOf(retrReturnedMessage.charAt(0)).equals("-")) {
-                    System.out.println("done RETR -"); //debugging purposes
+
                 } else {
                     System.out.println("-An unexpected error has occurred");
                 }
@@ -127,7 +131,6 @@ public class Client {
 
                             // If response code is a failure
                         } else if (String.valueOf(storReturnedMessage.charAt(0)).equals("-")) {
-                            System.out.println("done STOR -"); //debugging purposes
 
                             // Safety else statement (shouldn't be executed)
                         } else {
@@ -147,6 +150,7 @@ public class Client {
         }
     }
 
+    // Called in the beginning to connect to the server.
     private void startConnection(String address, int port) throws IOException {
         // establish a connection
         clientSocket = new Socket(address, port);
@@ -154,21 +158,17 @@ public class Client {
         dataFromServerToClient = new DataInputStream(clientSocket.getInputStream());
 
         String returnedMessage = receiveTextFromServer(true);
-        System.out.println("Received [" + returnedMessage + "] from server");
-
-        System.out.println("Connected");
 
         String inputFromUser = "";
         scan = new Scanner(System.in);
-        System.out.println("All text input will be echoed to the server. Type 'exit' to quit");
 
         while (!inputFromUser.toLowerCase().equals("done")) {
-            System.out.print("[Command Finished] Please enter a command: ");
             inputFromUser = scan.nextLine();
             this.sendMessage(inputFromUser);
         }
     }
 
+    // Removes null values from a byte array
     private byte[] removeNull(byte[] array) {
         int sizeOfArray = 0;
         byte value = 0;
@@ -180,21 +180,16 @@ public class Client {
                 break;
             }
         }
-
         byte[] nullRemovedByteArray = new byte[sizeOfArray];
 
         for (int j=0; j < sizeOfArray; j++){
             nullRemovedByteArray[j] = array[j];
         }
-
         return  nullRemovedByteArray;
     }
 
     private String[] parseCommandFromClient(String commandFromClient) {
         String[] tokenizedCommand = commandFromClient.trim().split("\\s+");
-//            for (String command : tokenizedCommand) {
-////                System.out.println(command);
-////            }
         return tokenizedCommand;
     }
 
@@ -203,7 +198,7 @@ public class Client {
         byte[] byteArrayWithNull = new byte[stringAsByteArray.length + 1];
         System.arraycopy(stringAsByteArray,0, byteArrayWithNull, 0, stringAsByteArray.length);
         sendBytes(byteArrayWithNull);
-        System.out.println("Sent Message: " + string + "\0");
+        System.out.println(string + "\0");
     }
 
     private String receiveTextFromServer(boolean printOutput) throws IOException {
@@ -211,7 +206,7 @@ public class Client {
         byte[] messageBuffer = receiveBytes(10000000);
         String returnedMessage = new String(removeNull(messageBuffer));
         if (printOutput) {
-            System.out.println("Received message: " + returnedMessage + " from server");
+            System.out.println(returnedMessage);
         }
         return returnedMessage;
     }
@@ -243,7 +238,6 @@ public class Client {
     }
 
     public static void main(String args[]) throws IOException {
-        System.out.println("Hello World");
         Client client = new Client();
         client.startConnection("127.0.0.1", 5000);
 

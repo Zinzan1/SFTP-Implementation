@@ -10,6 +10,9 @@ import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Scanner;
 
+// Below is the code for the server, including a main function.
+// I have provided some basic comments for the code, but I have tried to use good variable names for self documenting
+// code.
 /***********************************************   Server Code   ******************************************************/
 public class Server {
     private ServerSocket server;
@@ -26,11 +29,14 @@ public class Server {
     private Server() {
     }
 
+    // Method that starts the server
     private void start(int port) throws IOException {
+        // Listens on server port
         server = new ServerSocket(port);
         isHandlingRequests = true;
         System.out.println("Server started: Host=" + server.getInetAddress().getHostAddress() + " Port=" + server.getLocalPort());
 
+        // Thread to close the server (not used)
         new Thread(() -> {
             String inputFromUser = "";
             Scanner scan = new Scanner(System.in);
@@ -48,11 +54,13 @@ public class Server {
             }
         }).start();
 
+        // Create threads to handle requests.
         while (this.isHandlingRequests) {
             new ClientHandler(server.accept()).start();
         }
     }
 
+    // Wrapper for closing the server
     private void stop() throws IOException {
         server.close();
     }
@@ -74,13 +82,16 @@ public class Server {
 
         private Profile currentProfileLoggedIn;
 
-
         String currentWorkingDirectory = System.getProperty("user.dir");
 
+        // Constructor for creating a ClientHandler thread
+        // This thread is alive as long as the connection is alive.
         private ClientHandler(Socket socket) {
             this.clientSocket = socket;
         }
 
+        // Need to override to do something useful.
+        // This is where the computation happens
         @Override
         public void run() {
             try {
@@ -90,13 +101,22 @@ public class Server {
                 sendTextToClient(Server.POS_GREETING);
                 System.out.println(currentWorkingDirectory);
 
+                // thread runs while connection is open
                 while (connectionIsOpen) {
+                    // waits for a message from the client
                     String messageFromClient = receiveTextFromClient();
+                    // prints the message to server console.
+                    // Note, the server will print lots of commands that are not in the specification.
+                    // There was no specific instruction on this so I left the server as as.
                     System.out.println(clientSocket + " sent: " + messageFromClient);
 
+                    // Parse the arguments from the client
                     String[] commandAsTokens = parseCommandFromClient(messageFromClient);
+                    // Ignore case of the command tokens
                     String upperCommandFromClient = commandAsTokens[0].toUpperCase();
 
+                    // Match the command to the specified commands
+                    // Self explanatory.
                     switch (upperCommandFromClient) {
                         case "USER":
                             userCommand(commandAsTokens);
@@ -131,6 +151,8 @@ public class Server {
                         case "STOR":
                             storCommand(commandAsTokens);
                             break;
+
+                        // Default branch is taken if there are no matches
                         default:
                             String message = "-Command not recognised, please try again.";
                             sendTextToClient(message);
@@ -143,19 +165,23 @@ public class Server {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
+            // Prints to console when the thread is terminated.
             System.out.println("Thread Dead");
         }
 
+        // Code for the USER command
         private void userCommand(String[] args) throws IOException {
             String success = "+User-id valid, send account and password";
             String error = "-Invalid user-id, try again";
 
+            // Checks if the client has already authenticated or given a user prior ro calling this method
             if (isFullyAuthenticated() || userHasBeenGiven()) {
                 String alreadyLoggedIn = "! " + user + " logged in";
                 sendTextToClient(alreadyLoggedIn);
             } else {
+                // Checks for the correct number of arguments
                 if (args.length == 2) {
+                    // Checks if the client is logging in with super privileges
                     if (args[1].equals(superUserID)) {
                         user = superUserID;
                         account = superUserID;
@@ -164,29 +190,35 @@ public class Server {
                         String alreadyLoggedIn = "! " + user + " logged in";
                         sendTextToClient(alreadyLoggedIn);
                     }
+                    // Checks if the user specified exists in the "database"
                     else if(userIdExists(args[1])) {
                         user = args[1];
                         sendTextToClient(success);
                     } else {
+                        // If it does nto exist, then send an error message
                         sendTextToClient(error);
                     }
-                }
-                else {
+                } else {
+                    // If incorrect number of args specified
                     sendTextToClient(error);
                 }
             }
         }
 
+        // Code for the ACCT command
         private void acctCommand(String[] args) throws IOException {
             String loggedIn = "! Account valid, logged-in";
             String success = "+Account valid, send password";
             String error = "-Invalid account, try again";
 
+            // Checks if already authenticated
             if (isFullyAuthenticated()) {
                 sendTextToClient(loggedIn);
             } else {
+                // Checks if user has been given
                 if (userHasBeenGiven()) {
                     if(args.length == 2) {
+                        // Checks if the ACCT given matches the USER
                         if(accountExistsForId(args[1])) {
                             account = args[1];
                             if(passHasBeenGiven()){
@@ -206,6 +238,7 @@ public class Server {
             }
         }
 
+        // Code for the PASS command - similar to ACCT
         private void passCommand(String[] args) throws IOException {
             String loggedIn = "! Logged in";
             String success = "+Send account";
@@ -235,6 +268,7 @@ public class Server {
             }
         }
 
+        // TYPE command - pretty useless for windows
         private void typeCommand(String[] args) throws IOException {
             String successA = "+Using Ascii mode";
             String successB = "+Using Binary mode";
@@ -264,7 +298,7 @@ public class Server {
             }
         }
 
-        //TODO use helper function (uses cmd or terminal)
+        // LIST command
         private void listCommand(String[] args) throws IOException, InterruptedException {
             String wrongArg = "-Please provide 'F' or 'V' as the second argument";
             String error = "-cannot access '" + "your arg" + "': No such file or directory";
@@ -275,14 +309,15 @@ public class Server {
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1].toUpperCase();
-                    String lsReturn = callLsFromCommandLine(currentWorkingDirectory);
+                    String lsReturn;
                     switch(arg) {
                         case "F":
-                            System.out.println("Client arg was F");
+                            // Passes the call to windows cmd.exe
+                            lsReturn = callLsFromCommandLine(currentWorkingDirectory, false);
                             sendTextToClient(lsReturn);
                             break;
                         case "V":
-                            System.out.println("Client arg was V");
+                            lsReturn = callLsFromCommandLine(currentWorkingDirectory, true);
                             sendTextToClient(lsReturn);
                             break;
                         default:
@@ -293,14 +328,14 @@ public class Server {
                 else if (args.length == 3){
                     String arg3 = args[1].toUpperCase();
                     String pathToDir = args[2];
-                    String lsReturn = callLsFromCommandLine(pathToDir);
+                    String lsReturn;
                     switch(arg3) {
                         case "F":
-                            System.out.println("Client arg was F");
+                            lsReturn = callLsFromCommandLine(pathToDir, false);
                             sendTextToClient(lsReturn);
                             break;
                         case "V":
-                            System.out.println("Client arg was V");
+                            lsReturn = callLsFromCommandLine(pathToDir, true);
                             sendTextToClient(lsReturn);
                             break;
                         default:
@@ -317,6 +352,7 @@ public class Server {
             }
         }
 
+        // CDIR command
         private void cdirCommand(String[] args) throws IOException {
             String success = "+directory ok, send account/password";
             String fileNotExist = "-Can't connect to directory because: file doesn't exist";
@@ -333,9 +369,12 @@ public class Server {
                     String arg = args[1];
                     File proposedDir = new File(arg);
 
+                    // Checks if the directory on the remote server exists
                     if (proposedDir.exists()) {
+                        // Checks if the argument specified is a directory and not a file
                         if (proposedDir.isDirectory()) {
                             if (!currentWorkingDirectory.equals(arg)) {
+                                // Super user doesn't need to authenticate
                                 if (isSuperUser) {
                                     currentWorkingDirectory = proposedDir.getAbsolutePath();
                                     passGiven = true;
@@ -343,6 +382,7 @@ public class Server {
                                     String changed = "!Changed working dir to " + proposedDir.getAbsolutePath();
                                     sendTextToClient(changed);
                                 } else {
+                                    // Regular user needs to authenticate
                                     sendTextToClient(success);
                                     String succReturn;
                                     String[] succArgs;
@@ -425,6 +465,7 @@ public class Server {
             }
         }
 
+        // KILL command
         private void killCommand(String[] args) throws IOException {
             String fileNotExist = "-Not deleted because: file doesn't exist";
             String notAtDir = "-Not deleted because: file is a directory";
@@ -434,7 +475,9 @@ public class Server {
                     String arg = args[1];
                     File proposedFileForDeletion= new File(currentWorkingDirectory + System.lineSeparator() + arg);
 
+                    // Checks if the file exists
                     if (proposedFileForDeletion.exists()) {
+                        // Checks if file is NOT a directory
                         if (!proposedFileForDeletion.isDirectory()) {
                             sendTextToClient("+" + arg + " deleted");
                             Files.delete(proposedFileForDeletion.toPath());
@@ -452,6 +495,7 @@ public class Server {
             }
         }
 
+        // NAME command
         private void nameCommand(String[] args) throws IOException {
             String badArgument = "-Not renamed because: file doesn't exist";
             String oldFileName;
@@ -507,13 +551,13 @@ public class Server {
             }
         }
 
+        // DONE command
         private void doneCommand(String[] args) throws IOException {
-            String success = "+Your account has been invoiced";
+            String success = "+UOA-XX closing connection";
             String tooManyArgs = "-Done requires no arguments";
             if (isFullyAuthenticated()) {
                 if (args.length == 1) {
                     sendTextToClient(success);
-                    clientSocket.close();
                     connectionIsOpen = false;
                 }
                 else {
@@ -524,6 +568,7 @@ public class Server {
             }
         }
 
+        // RETR command
         private void retrCommand(String[] args) throws IOException {
             String fileNotExist = "-File doesn't exist";
 
@@ -577,6 +622,7 @@ public class Server {
             System.out.println("end RETR");
         }
 
+        // STOR command
         private void storCommand(String[] args) throws IOException {
             String notEnoughArgs = "-STOR takes 3 arguments";
 
@@ -815,16 +861,15 @@ public class Server {
             }
         }
 
-
+        // Below are helper functions. They are called in the specified commands but have been moved into their own
+        // functions to avoid duplication
         /****************************************   Helper Functions   ************************************************/
         private String[] parseCommandFromClient(String commandFromClient) {
             String[] tokenizedCommand = commandFromClient.trim().split("\\s+", 3);
-//            for (String command : tokenizedCommand) {
-////                System.out.println(command);
-////            }
             return tokenizedCommand;
         }
 
+        // Removes null values from an array.
         private byte[] removeNull(byte[] array) {
             int sizeOfArray = 0;
             byte value = 0;
@@ -943,9 +988,14 @@ public class Server {
             return true;
         }
 
-        private String callLsFromCommandLine(String pathToDirectory) throws IOException, InterruptedException {
-            String[] linuxArgs = new String[] {"/bin/bash", "-c", "ls", "-l"};
-            String[] windowsArgs = new String[] {"cmd.exe", "/c", "dir", pathToDirectory, "/q"};
+        // Forwards the LIST call to cmd.exe
+        private String callLsFromCommandLine(String pathToDirectory, boolean isVerbose) throws IOException, InterruptedException {
+            String[] windowsArgs = null;
+            if(isVerbose) {
+                windowsArgs = new String[] {"cmd.exe", "/c", "cd && dir", pathToDirectory, "/q"};
+            } else {
+                windowsArgs = new String[] {"cmd.exe", "/c", "cd && dir", pathToDirectory, "/b"};
+            }
             Process pr = new ProcessBuilder(windowsArgs).start();
 
             BufferedReader input =
@@ -971,21 +1021,48 @@ public class Server {
             String result = inputBuilder.toString();
             String errorResult = errorBuilder.toString();
             String returned = result + errorResult;
-            int substringIndex = ordinalIndexOf(returned, "\n", 4);
-            String output = returned.substring(substringIndex);
-            System.out.println(output);
 
             int exitCode = pr.waitFor();
-            System.out.println("\nExited with error code : " + exitCode);
-            return result;
+
+            int firstIndexOfPWD = returned.indexOf(":")-1;
+            int lastIndexOfPWD = returned.indexOf("\n")+1;
+            String errorCodeMessage = "+" + returned.substring(firstIndexOfPWD, lastIndexOfPWD);
+
+            if (exitCode==0) {
+                if (isVerbose) {
+                    int substringIndexStart = ordinalIndexOf(returned, "\n", 5) + 1;
+                    int substringIndexEnd = nthLastIndexOf(3, "\n", returned) + 1;
+                    String output = errorCodeMessage + returned.substring(substringIndexStart, substringIndexEnd);
+                    return output;
+                } else {
+                    return "+" + returned;
+                }
+            } else {
+                if (isVerbose) {
+                    int index = ordinalIndexOf(returned, "\n", 5) + 1;
+                    returned = returned.substring(index);
+                    return "-" + returned;
+                } else {
+                    int index = returned.indexOf("\n") + 1;
+                    returned = returned.substring(index);
+                    return "-" + returned;
+                }
+            }
         }
 
+        // Returns the index of the nth occurrence of a char in a string
         private int ordinalIndexOf(String str, String substr, int n) {
             int pos = -1;
             do {
                 pos = str.indexOf(substr, pos + 1);
             } while (n-- > 0 && pos != -1);
             return pos;
+        }
+
+        // Returns the index of the nth Last occurrence of a char in a string
+        private int nthLastIndexOf(int nth, String ch, String string) {
+            if (nth <= 0) return string.length();
+            return nthLastIndexOf(--nth, ch, string.substring(0, string.lastIndexOf(ch)));
         }
     }
 
