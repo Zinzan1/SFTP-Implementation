@@ -1,5 +1,7 @@
 package main;
 
+import com.sun.deploy.util.StringUtils;
+
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -138,6 +140,8 @@ public class Server {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
 
             System.out.println("Thread Dead");
@@ -261,8 +265,8 @@ public class Server {
         }
 
         //TODO use helper function (uses cmd or terminal)
-        private void listCommand(String[] args) throws IOException {
-            String success = "+";
+        private void listCommand(String[] args) throws IOException, InterruptedException {
+            String wrongArg = "-Please provide 'F' or 'V' as the second argument";
             String error = "-cannot access '" + "your arg" + "': No such file or directory";
 
             File curDir = new File(currentWorkingDirectory);
@@ -271,38 +275,48 @@ public class Server {
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1].toUpperCase();
+                    String lsReturn = callLsFromCommandLine(currentWorkingDirectory);
                     switch(arg) {
                         case "F":
                             System.out.println("Client arg was F");
-                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            sendTextToClient(lsReturn);
                             break;
                         case "V":
                             System.out.println("Client arg was V");
-                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            sendTextToClient(lsReturn);
                             break;
                         default:
-                            sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                            sendTextToClient(wrongArg);
                             break;
                     }
                 }
                 else if (args.length == 3){
+                    String arg3 = args[1].toUpperCase();
                     String pathToDir = args[2];
-                    File proposedDir = new File(pathToDir);
-
-                    System.out.println("Client arg was null");
-                    sendTextToClient(formatDirectoryFiles(filesInThisDir));
+                    String lsReturn = callLsFromCommandLine(pathToDir);
+                    switch(arg3) {
+                        case "F":
+                            System.out.println("Client arg was F");
+                            sendTextToClient(lsReturn);
+                            break;
+                        case "V":
+                            System.out.println("Client arg was V");
+                            sendTextToClient(lsReturn);
+                            break;
+                        default:
+                            sendTextToClient(wrongArg);
+                            break;
+                    }
                 } else if (args.length == 1) {
-                    String noArg = "-Please provide 'F' or 'V' as an argument";
-                    sendTextToClient(noArg);
-                }
-                else {
+                    sendTextToClient(wrongArg);
+                } else {
                     sendTextToClient(error);
                 }
             } else {
                 sendTextToClient(notLoggedIn);
             }
         }
-//TODO make sure the end of path has a slash.
+
         private void cdirCommand(String[] args) throws IOException {
             String success = "+directory ok, send account/password";
             String fileNotExist = "-Can't connect to directory because: file doesn't exist";
@@ -314,8 +328,6 @@ public class Server {
 
             File curDir = new File(currentWorkingDirectory);
 
-            //TODO Not currently working when switching drive letters in windows.
-            // Refactor using cd command from linux.
             if (isFullyAuthenticated()) {
                 if (args.length == 2) {
                     String arg = args[1];
@@ -931,9 +943,9 @@ public class Server {
             return true;
         }
 
-        private void callLsFromCommandLine(String command) throws IOException, InterruptedException {
+        private String callLsFromCommandLine(String pathToDirectory) throws IOException, InterruptedException {
             String[] linuxArgs = new String[] {"/bin/bash", "-c", "ls", "-l"};
-            String[] windowsArgs = new String[] {"cmd.exe", "/c", "dir", "/q"};
+            String[] windowsArgs = new String[] {"cmd.exe", "/c", "dir", pathToDirectory, "/q"};
             Process pr = new ProcessBuilder(windowsArgs).start();
 
             BufferedReader input =
@@ -958,27 +970,22 @@ public class Server {
 
             String result = inputBuilder.toString();
             String errorResult = errorBuilder.toString();
-
-            System.out.println("Program output: " + result);
-            System.out.println("Error output: " + errorResult);
+            String returned = result + errorResult;
+            int substringIndex = ordinalIndexOf(returned, "\n", 4);
+            String output = returned.substring(substringIndex);
+            System.out.println(output);
 
             int exitCode = pr.waitFor();
             System.out.println("\nExited with error code : " + exitCode);
+            return result;
         }
 
-        private String getOperatingSystem() {
-            String os = System.getProperty("os.name");
-            System.out.println("Using System Property: " + os);
-            return os;
-        }
-
-        private String formatDirectoryFiles(String[] listOfFiles) {
-            StringBuilder filesAsString = new StringBuilder();
-            filesAsString.append("+" + currentWorkingDirectory + System.lineSeparator());
-            for (String s : listOfFiles) {
-                filesAsString.append(s + System.lineSeparator());
-            }
-            return filesAsString.toString();
+        private int ordinalIndexOf(String str, String substr, int n) {
+            int pos = -1;
+            do {
+                pos = str.indexOf(substr, pos + 1);
+            } while (n-- > 0 && pos != -1);
+            return pos;
         }
     }
 
